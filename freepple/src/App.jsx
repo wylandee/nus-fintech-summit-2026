@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Navbar } from './components/Navbar'
-import { getDevWallet } from './utils/xrplManager' // Import your new backend file
+import { getDevWallet, createEscrow } from './utils/xrplManager' // Import your new backend file
 
 function App() {
   const [wallet, setWallet] = useState(null)
@@ -20,24 +20,20 @@ function App() {
     setLoading(false)
   }
 
-  return (
-    <div className="min-h-screen bg-slate-900 text-white">
-      {/* Pass the function to the Navbar Button */}
-      <Navbar 
-        onConnect={handleConnect} 
-        walletAddress={wallet?.address} 
-      />
-      
-      {/* Visual Feedback while loading */}
-      {loading && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
-          <div className="text-xl font-bold animate-pulse">Creating & Funding Wallet...</div>
-        </div>
-      )}
+  const runTest = async () => {
+  // 1. Get a funded wallet (Sender)
+  const wallet = await getDevWallet()
+  
+  // 2. Send money to ITSELF (Easiest test case)
+  // We lock 5 XRP. The wallet is both sender and receiver.
+  const result = await createEscrow(wallet, "5", wallet.address)
+  
+  alert(`Escrow Created! Secret: ${result.secret}`)
+}
 
-      {/* Rest of your app... */}
-    </div>
-  )
+return (
+  <button onClick={runTest}>TEST BACKEND</button>
+)
 }
 
 export default App

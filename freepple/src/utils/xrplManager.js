@@ -1,52 +1,39 @@
-// Import the library
-import xrpl from "xrpl"
+import * as xrpl from 'xrpl'
 
-// Define the network client
+// 1. Singleton Client (So we don't open 100 connections)
 const SERVER_URL = "wss://s.altnet.rippletest.net:51233/"
-const client = new xrpl.Client(SERVER_URL)
-await client.connect()
-console.log("Connected to Testnet")
+let client = null
 
-// Create a wallet and fund it with the Testnet faucet:
-console.log("\nCreating a new wallet and funding it with Testnet XRP...")
-const fund_result = await client.fundWallet()
-const test_wallet = fund_result.wallet
-console.log(`Wallet: ${test_wallet.address}`)
-console.log(`Balance: ${fund_result.balance}`)
-console.log('Account Testnet Explorer URL:')
-console.log(`Seed: ${test_wallet.seed}`)
-console.log(`  https://testnet.xrpl.org/accounts/${test_wallet.address}`)
+export async function connectClient() {
+  // If already connected, reuse it
+  if (client && client.isConnected()) return client
 
-// To generate a wallet without funding it, uncomment the code below
-// const test_wallet = xrpl.Wallet.generate()
+  console.log("⏳ Connecting to Testnet...")
+  client = new xrpl.Client(SERVER_URL)
+  await client.connect()
+  
+  console.log("✅ Connected!")
+  return client
+}
 
-// To provide your own seed, replace the test_wallet value with the below
-// const test_wallet = xrpl.Wallet.fromSeed("your-seed-key")
+// 2. The Funding Function (Your code, wrapped)
+export async function getDevWallet() {
+  const _client = await connectClient()
 
-// Get info from the ledger about the address we just funded
-console.log("\nGetting account info...")
-const response = await client.request({
-  "command": "account_info",
-  "account": test_wallet.address,
-  "ledger_index": "validated"
-})
-console.log(JSON.stringify(response, null, 2))
-
-// Listen to ledger close events
-console.log("\nListening for ledger close events...")
-client.request({
-  "command": "subscribe",
-  "streams": ["ledger"]
-})
-client.on("ledgerClosed", async (ledger) => {
-  console.log(`Ledger #${ledger.ledger_index} validated ` +
-              `with ${ledger.txn_count} transactions!`)
-})
-
-// Disconnect when done so Node.js can end the process.
-// Delay this by 10 seconds to give the ledger event listener time to receive
-// and display some ledger events.
-setTimeout(async () => {
-  await client.disconnect();
-  console.log('\nDisconnected');
-}, 10000);
+  console.log("💸 Asking Faucet for funds...")
+  
+  // This function does the heavy lifting: 
+  // 1. Generates keys 
+  // 2. Talks to the Faucet 
+  // 3. Waits for the ledger to confirm the balance
+  const { wallet, balance } = await _client.fundWallet()
+  
+  console.log(`✅ Wallet Funded: ${wallet.address}`)
+  console.log(`💰 Balance: ${balance} XRP`)
+  
+  return {
+    wallet,
+    balance,
+    explorer: `https://testnet.xrpl.org/accounts/${wallet.address}`
+  }
+}

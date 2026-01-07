@@ -3,29 +3,36 @@ import { useSearchParams } from 'react-router-dom'
 import { Card } from '../components/Card'
 import { Input } from '../components/Input'
 import { GlowButton } from '../components/GlowButton'
-// 👇 Import the updated function name
 import { createEscrow } from '../utils/xrplManager'
 
 export function Pay({ wallet, onConnect }) {
   const [searchParams] = useSearchParams()
   
-  // Form State
   const [amount, setAmount] = useState('')
   const [destination, setDestination] = useState('')
   const [memo, setMemo] = useState('')
   // 👇 NEW: Duration State (Default 24 hours)
   const [duration, setDuration] = useState(24)
   
-  // Process State
+  // New State: Are the fields locked by the URL?
+  const [isLocked, setIsLocked] = useState(false)
+  
   const [isLoading, setIsLoading] = useState(false)
   const [successData, setSuccessData] = useState(null)
 
-  // Auto-fill from URL
   useEffect(() => {
     const urlTo = searchParams.get('to')
     const urlAmount = searchParams.get('amount')
-    if (urlTo) setDestination(urlTo)
-    if (urlAmount) setAmount(urlAmount)
+    const urlMemo = searchParams.get('memo')
+
+    // If URL data exists, fill it AND lock the fields
+    if (urlTo && urlAmount) {
+      setDestination(urlTo)
+      setAmount(urlAmount)
+      if (urlMemo) setMemo(urlMemo)
+      
+      setIsLocked(true) // <--- LOCK ACTIVATED
+    }
   }, [searchParams])
 
   const handleLock = async () => {
@@ -41,7 +48,6 @@ export function Pay({ wallet, onConnect }) {
     setIsLoading(false)
   }
 
-  // VIEW 1: Success Receipt
   if (successData) {
     return (
       <div className="pt-32 px-4 flex justify-center">
@@ -52,35 +58,26 @@ export function Pay({ wallet, onConnect }) {
               {successData.secret}
             </p>
           </div>
-
-          <div className="space-y-4">
-             <Input label="Escrow ID (Sequence)" value={successData.sequence} readOnly />
-             <div className="flex justify-between text-xs text-slate-400 px-2">
-                <span>Expires:</span>
-                <span className="text-white">{successData.expiry.toLocaleString()}</span>
-             </div>
-          </div>
-
+          <Input label="Escrow ID" value={successData.sequence} readOnly />
+          <Input label="Transaction Hash" value={successData.txHash} readOnly />
           <div className="mt-8">
-            <GlowButton onClick={() => setSuccessData(null)} variant="secondary">
-              Make Another Payment
-            </GlowButton>
+            <GlowButton onClick={() => setSuccessData(null)} variant="secondary">Make Another Payment</GlowButton>
           </div>
         </Card>
       </div>
     )
   }
 
-  // VIEW 2: The Form
   return (
     <div className="pt-32 px-4 flex justify-center">
-      <Card title="Secure Payment" subtitle="Funds are held in XRPL Escrow until job is done.">
+      <Card title="Secure Payment" subtitle={isLocked ? "Invoice Details Locked" : "Funds are held in XRPL Escrow"}>
         
         <Input 
-          label="Paying To (Freelancer Address)" 
+          label="Paying To (Freelancer)" 
           value={destination} 
           onChange={(e) => setDestination(e.target.value)}
           placeholder="rRecipientAddress..."
+          readOnly={isLocked} // <--- LOCKED
         />
         
         <Input 
@@ -88,6 +85,7 @@ export function Pay({ wallet, onConnect }) {
           value={amount} 
           onChange={(e) => setAmount(e.target.value)}
           placeholder="0.00"
+          readOnly={isLocked} // <--- LOCKED
         />
 
         {/* 👇 NEW: Time Limit Dropdown */}
@@ -115,16 +113,24 @@ export function Pay({ wallet, onConnect }) {
           value={memo} 
           onChange={(e) => setMemo(e.target.value)}
           placeholder="e.g. Website Design"
+          readOnly={isLocked} // <--- LOCKED
         />
 
-        <div className="mt-8">
+        {/* Visual feedback so they know why they can't type */}
+        {isLocked && (
+          <div className="text-xs text-center text-yellow-500/80 mb-4 bg-yellow-500/10 p-2 rounded border border-yellow-500/20">
+            🔒 Details are fixed by the invoice link.
+          </div>
+        )}
+
+        <div className="mt-4">
           {!wallet ? (
             <GlowButton onClick={onConnect} variant="secondary">
               Connect Wallet to Pay
             </GlowButton>
           ) : (
             <GlowButton onClick={handleLock} isLoading={isLoading}>
-              🔒 Lock Funds
+              Lock {amount || "0"} XRP
             </GlowButton>
           )}
         </div>

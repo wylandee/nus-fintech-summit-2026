@@ -2,13 +2,13 @@ import { useState } from 'react'
 import { Card } from '../components/Card'
 import { GlowButton } from '../components/GlowButton'
 import { Input } from '../components/Input'
-// Import both logic engines
 import { getDevWallet } from '../utils/xrplManager'
 import { getExistingWallet } from '../utils/xrplLogin'
 
 export function Login({ setWallet }) {
   const [isLoading, setIsLoading] = useState(false)
   const [seedInput, setSeedInput] = useState("")
+  const [addressInput, setAddressInput] = useState("") // New State
   const [error, setError] = useState("")
 
   // OPTION A: Create New
@@ -17,24 +17,29 @@ export function Login({ setWallet }) {
     setError("")
     try {
       const wallet = await getDevWallet()
-      alert(`🎉 Wallet Created! Save this Seed: ${wallet.seed}`)
-      setWallet(wallet) // Unlocks the App
+      // Show both address and seed so they can log in next time
+      alert(`🎉 Wallet Created!\n\nAddress: ${wallet.address}\nSeed: ${wallet.seed}\n\nSAVE THESE!`)
+      setWallet(wallet)
     } catch (e) {
       setError("Creation failed: " + e.message)
     }
     setIsLoading(false)
   }
 
-  // OPTION B: Login with Seed
+  // OPTION B: Login with Address + Seed
   const handleLogin = async () => {
-    if (!seedInput) return setError("Please enter your seed (sEd...)")
+    // Basic validation
+    if (!addressInput.startsWith("r")) return setError("Address must start with 'r'")
+    if (!seedInput.startsWith("s")) return setError("Seed must start with 's'")
+
     setIsLoading(true)
     setError("")
     try {
-      const wallet = await getExistingWallet(seedInput)
-      setWallet(wallet) // Unlocks the App
+      // 👇 Pass BOTH values now
+      const wallet = await getExistingWallet(seedInput, addressInput)
+      setWallet(wallet) 
     } catch (e) {
-      setError("Invalid Seed or Network Error")
+      setError(e.message) // Show the specific mismatch error
     }
     setIsLoading(false)
   }
@@ -42,28 +47,34 @@ export function Login({ setWallet }) {
   return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
       <div className="max-w-md w-full space-y-8">
-        
-        {/* Logo Area */}
         <div className="text-center">
           <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent mb-2">
             Freepple
           </h1>
-          <p className="text-slate-400">Freelance Payments on XRPL</p>
+          <p className="text-slate-400">Secure XRPL Login</p>
         </div>
 
-        {/* The Main Card */}
-        <Card title="Connect to Continue">
+        <Card title="Access Your Wallet">
           
-          {/* Section 1: Existing User */}
           <div className="space-y-4">
-            <label className="text-sm font-bold text-slate-300">I have a wallet</label>
+            <label className="text-sm font-bold text-slate-300">Existing User Login</label>
+            
+            {/* 👇 New Input Field */}
             <Input 
-              placeholder="Enter Seed (sEd7...)" 
-              value={seedInput}
-              onChange={(e) => setSeedInput(e.target.value)}
+              placeholder="Wallet Address (r...)" 
+              value={addressInput}
+              onChange={(e) => setAddressInput(e.target.value.trim())} // trim whitespace
             />
+            
+            <Input 
+              placeholder="Secret Seed (sEd...)" 
+              value={seedInput}
+              onChange={(e) => setSeedInput(e.target.value.trim())}
+              type="password" // Optional: hide the seed
+            />
+            
             <GlowButton onClick={handleLogin} isLoading={isLoading}>
-              Access Dashboard
+              Login Securely
             </GlowButton>
           </div>
 
@@ -72,9 +83,7 @@ export function Login({ setWallet }) {
             <div className="relative flex justify-center text-xs uppercase"><span className="bg-slate-900 px-2 text-slate-500">Or</span></div>
           </div>
 
-          {/* Section 2: New User */}
           <div className="text-center">
-            <p className="text-xs text-slate-400 mb-4">New here? We'll give you a test wallet with 1,000 XRP.</p>
             <button 
               onClick={handleCreate}
               disabled={isLoading}
@@ -84,14 +93,12 @@ export function Login({ setWallet }) {
             </button>
           </div>
 
-          {/* Error Message */}
           {error && (
-            <div className="mt-4 p-3 bg-red-900/20 border border-red-900/50 rounded text-red-400 text-xs text-center">
+            <div className="mt-4 p-3 bg-red-900/20 border border-red-900/50 rounded text-red-400 text-xs text-center break-words">
               {error}
             </div>
           )}
         </Card>
-
       </div>
     </div>
   )

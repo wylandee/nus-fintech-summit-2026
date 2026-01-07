@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { Card } from '../components/Card'
 import { Input } from '../components/Input'
 import { GlowButton } from '../components/GlowButton'
-// Import the Engine
+// 👇 Import the updated function name
 import { createEscrow } from '../utils/xrplManager'
 
 export function Pay({ wallet, onConnect }) {
@@ -13,10 +13,12 @@ export function Pay({ wallet, onConnect }) {
   const [amount, setAmount] = useState('')
   const [destination, setDestination] = useState('')
   const [memo, setMemo] = useState('')
+  // 👇 NEW: Duration State (Default 24 hours)
+  const [duration, setDuration] = useState(24)
   
   // Process State
   const [isLoading, setIsLoading] = useState(false)
-  const [successData, setSuccessData] = useState(null) // Stores the Secret/Hash after success
+  const [successData, setSuccessData] = useState(null)
 
   // Auto-fill from URL
   useEffect(() => {
@@ -26,13 +28,13 @@ export function Pay({ wallet, onConnect }) {
     if (urlAmount) setAmount(urlAmount)
   }, [searchParams])
 
-  // THE REAL LOCK LOGIC
   const handleLock = async () => {
     if (!wallet) return
     setIsLoading(true)
     try {
-      const result = await createEscrow(wallet, amount, destination)
-      setSuccessData(result) // Switch to Success View
+      // 👇 Pass 'duration' as the 4th argument
+      const result = await createEscrow(wallet, amount, destination, duration)
+      setSuccessData(result) 
     } catch (error) {
       alert("Error: " + error.message)
     }
@@ -53,7 +55,10 @@ export function Pay({ wallet, onConnect }) {
 
           <div className="space-y-4">
              <Input label="Escrow ID (Sequence)" value={successData.sequence} readOnly />
-             <Input label="Transaction Hash" value={successData.txHash} readOnly />
+             <div className="flex justify-between text-xs text-slate-400 px-2">
+                <span>Expires:</span>
+                <span className="text-white">{successData.expiry.toLocaleString()}</span>
+             </div>
           </div>
 
           <div className="mt-8">
@@ -84,6 +89,26 @@ export function Pay({ wallet, onConnect }) {
           onChange={(e) => setAmount(e.target.value)}
           placeholder="0.00"
         />
+
+        {/* 👇 NEW: Time Limit Dropdown */}
+        <div className="mb-4">
+          <label className="block text-slate-400 text-xs font-bold mb-2 uppercase tracking-wider">
+            Auto-Refund Timer
+          </label>
+          <select 
+            value={duration}
+            onChange={(e) => setDuration(Number(e.target.value))}
+            className="w-full bg-slate-950 border border-slate-700 text-white p-3 rounded-lg focus:border-blue-500 outline-none appearance-none cursor-pointer hover:border-slate-500 transition"
+          >
+            <option value={0.05}>⚡️ 3 Minutes (Fast Test)</option>
+            <option value={1}>1 Hour</option>
+            <option value={24}>24 Hours</option>
+            <option value={168}>7 Days (Standard)</option>
+          </select>
+          <p className="text-[10px] text-slate-500 mt-2">
+            If the freelancer does not unlock the funds by this time, you can reclaim them.
+          </p>
+        </div>
 
         <Input 
           label="Job Description" 

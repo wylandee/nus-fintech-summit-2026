@@ -43,64 +43,71 @@ export async function getDevWallet() {
  * @param {string} amountXRP - Amount in XRP (string, e.g. "10")
  * @param {string} destinationAddress - The freelancer's address
  */
-export async function createEscrow(senderWallet, amountXRP, destinationAddress) {
+export async function createEscrow(senderWallet, amountXRP, destinationAddress, durationHours = 24) {
   const _client = await connectClient()
-
   console.log("🔒 Generating Security Keys...")
 
-  // 1. GENERATE THE SECRET (The Key)
-  // We create a random 32-byte password. 
-  // This is what the Freelancer needs to unlock the funds later.
   const randomBytes = window.crypto.getRandomValues(new Uint8Array(32))
+  const secretHex = Array.from(randomBytes).map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase()
   
-  // Convert random bytes to a HEX string (e.g. "A1B2C3...")
-  const secretHex = Array.from(randomBytes)
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('')
-    .toUpperCase()
-
-  // 2. GENERATE THE LOCK (The Condition)
-  // We hash the secret using SHA-256. The Ledger holds this Hash.
   const hashBuffer = await window.crypto.subtle.digest('SHA-256', randomBytes)
   const hashArray = Array.from(new Uint8Array(hashBuffer))
   const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase()
 
-  // 🛠️ MAGIC PREFIX: "A0258020"
-  // This tells XRPL: "This is a standard SHA-256 Preimage Condition"
   const condition = "A0258020" + hashHex + "810120"
 
-  console.log("Secret (Save this!):", secretHex)
-  console.log("Condition (Public):", condition)
+  // 🕒 TIME CALCULATION:
+  // XRPL Time is seconds since 2000, not 1970. We use a helper helper.
+  const expiryDate = new Date(Date.now() + (durationHours * 60 * 60 * 1000))
+  const rippleCancelAfter = xrpl.isoTimeToRippleTime(expiryDate.toISOString())
 
-  // 3. SUBMIT THE ESCROW TRANSACTION
   const escrowTx = {
     TransactionType: "EscrowCreate",
     Account: senderWallet.address,
     Destination: destinationAddress,
-    Amount: xrpl.xrpToDrops(amountXRP), // Converts "10" to "10000000" drops
+    Amount: xrpl.xrpToDrops(amountXRP),
     Condition: condition, 
-    DestinationTag: 2026, // Optional tag
-    // Safety Net: If not claimed in 24 hours, money returns to you.
-    CancelAfter: xrpl.isoTimeToRippleTime(new Date(Date.now() + 86400000).toISOString()) 
+    DestinationTag: 2026,
+    CancelAfter: rippleCancelAfter // 👈 Set the deadline on the ledger
   }
 
-  console.log("🚀 Submitting Escrow to Ledger...")
-  
+  console.log("🚀 Submitting Escrow...")
   const result = await _client.submitAndWait(escrowTx, { wallet: senderWallet })
 
   if (result.result.meta.TransactionResult === "tesSUCCESS") {
-    console.log("✅ SUCCESS: Funds Locked!")
     return {
       txHash: result.result.hash,
       sequence: result.result.Sequence || result.result.tx_json.Sequence,
-      secret: secretHex,    // Display this to the user!
-      condition: condition
+      secret: secretHex,
+      condition: condition,
+      expiry: expiryDate // Return this so UI can show it
     }
   } else {
     throw new Error(`Tx Failed: ${result.result.meta.TransactionResult}`)
   }
 }
 
+// 2. ADD THIS NEW FUNCTION: The Refund Mechanism
+export async function cancelEscrow(wallet, ownerAddress, escrowSequence) {
+  const _client = await connectClient()
+  console.log("⏳ Attempting Refund...")
+
+  const tx = {
+    TransactionType: "EscrowCancel",
+    Account: wallet.address,
+    Owner: ownerAddress, // usually the same as wallet.address
+    OfferSequence: escrowSequence
+  }
+
+  const result = await _client.submitAndWait(tx, { wallet })
+
+  if (result.result.meta.TransactionResult === "tesSUCCESS") {
+    console.log("✅ REFUND SUCCESS!")
+    return result.result.hash
+  } else {
+    throw new Error(`Refund Failed: ${result.result.meta.TransactionResult} (Is it too early?)`)
+  }
+}
 /**
  * CLAIM LOGIC: Unlocks the funds using the Secret
  * @param {Object} wallet - The Freelancer's wallet

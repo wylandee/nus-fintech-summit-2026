@@ -1,25 +1,33 @@
 import * as xrpl from 'xrpl'
-import { connectClient } from './xrplManager' // Reuse the connection logic
+import { connectClient } from './xrplManager' 
 
 /**
- * LOGIN LOGIC: Restores a wallet from a specific seed
- * @param {string} seed - The secret key (e.g. "sEd...")
+ * LOGIN LOGIC: Restores wallet and verifies address match
+ * @param {string} seed - The secret key (sEd...)
+ * @param {string} expectedAddress - The user provided address (r...)
  */
-export async function getExistingWallet(seed) {
+export async function getExistingWallet(seed, expectedAddress) {
   const _client = await connectClient()
-  console.log("🔑 Restoring Wallet from Seed...")
+  console.log("🔑 Verifying Credentials...")
   
   try {
-    // 1. Restore from seed
+    // 1. Restore wallet from seed
     const wallet = xrpl.Wallet.fromSeed(seed)
+
+    // 2. 🛡️ SECURITY CHECK: Does the seed generate the address the user claims?
+    if (wallet.address !== expectedAddress) {
+      throw new Error(`Mismatch! This seed belongs to ${wallet.address}, not ${expectedAddress}`)
+    }
     
-    // 2. Get live balance
+    // 3. Get live balance
     const balance = await _client.getXrpBalance(wallet.address)
     
-    console.log(`✅ Logged in: ${wallet.address} (${balance} XRP)`)
+    console.log(`✅ Logged in: ${wallet.address}`)
     return wallet
+
   } catch (error) {
     console.error("Login Failed:", error)
-    throw new Error("Invalid Seed or Connection Error")
+    // Throw the specific mismatch error if it happened, otherwise generic
+    throw new Error(error.message || "Invalid Seed or Connection Error")
   }
 }

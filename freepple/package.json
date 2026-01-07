@@ -10,20 +10,21 @@
     "test": "node --test"
   },
   "dependencies": {
-    "xrpl": "^4.5.0",
-    "dotenv": "^16.4.0",
     "@tailwindcss/vite": "^4.1.18",
     "clsx": "^2.1.1",
+    "dotenv": "^16.4.0",
     "framer-motion": "^12.24.7",
     "lucide-react": "^0.562.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-router-dom": "^7.11.0",
     "tailwind-merge": "^3.4.0",
-    "vite-plugin-node-polyfills": "^0.24.0"
+    "vite-plugin-node-polyfills": "^0.24.0",
+    "xrpl": "^4.5.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
+    "@vitejs/plugin-react": "^5.1.2",
     "eslint": "^9.39.1",
     "globals": "^16.5.0"
   }

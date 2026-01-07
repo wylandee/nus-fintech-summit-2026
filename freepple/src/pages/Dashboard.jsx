@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Copy, Check, Plus, X, History, Activity } from 'lucide-react'
 import { claimEscrow, connectClient, getEscrowHistory } from '../utils/xrplManager'
+import { LoadingOverlay } from '../components/LoadingOverlay'
+import { Toast } from '../components/Toast' // 👈 Import
 
 export function Dashboard({ wallet }) {
   const [activeTab, setActiveTab] = useState('pending')
@@ -9,29 +11,25 @@ export function Dashboard({ wallet }) {
   const [secrets, setSecrets] = useState({}) 
   const [status, setStatus] = useState("Loading...")
   const [showInvoiceMaker, setShowInvoiceMaker] = useState(false)
+  const [isProcessing, setIsProcessing] = useState(false)
   
-  // Invoice Form
+  // 🆕 NOTIFICATION STATE
+  const [toast, setToast] = useState(null)
+
   const [invAmount, setInvAmount] = useState('')
   const [invMemo, setInvMemo] = useState('')
   const [generatedLink, setGeneratedLink] = useState('')
   const [copied, setCopied] = useState(false)
 
-  // 1. FETCH ACTIVE
+  // ... (Keep fetchActive and fetchPast exactly the same) ...
   const fetchActive = useCallback(async () => {
     if (!wallet) return
-    console.log("🔵 Fetching Active Jobs...") // DEBUG LOG
     setStatus("Scanning Ledger...")
     try {
       const client = await connectClient()
-      const response = await client.request({
-        command: "account_objects",
-        account: wallet.address,
-        type: "escrow",
-        ledger_index: "validated"
-      })
+      const response = await client.request({ command: "account_objects", account: wallet.address, type: "escrow", ledger_index: "validated" })
       const rawObjects = response.result.account_objects || []
       const myIncomingJobs = rawObjects.filter(obj => obj.Destination === wallet.address)
-      
       const enrichedEscrows = await Promise.all(myIncomingJobs.map(async (obj) => {
         try {
           const txResponse = await client.request({ command: "tx", transaction: obj.PreviousTxnID })
@@ -39,92 +37,57 @@ export function Dashboard({ wallet }) {
           return { ...obj, realSequence: txData.Sequence }
         } catch (err) { return { ...obj, realSequence: "ERROR" } }
       }))
-
       setEscrows(enrichedEscrows)
       setStatus("") 
-    } catch (error) {
-      console.error("❌ Active Fetch Error:", error)
-      setStatus("") 
-    }
+    } catch (error) { setStatus("") }
   }, [wallet])
 
-  // 2. FETCH HISTORY (The problematic part)
   const fetchPast = useCallback(async () => {
     if (!wallet) return
-    console.log("🟣 Fetching History...") // DEBUG LOG - Do you see this?
     setStatus("Loading History...")
-    
     try {
-      // Call the manager function
       const pastTx = await getEscrowHistory(wallet.address)
-      console.log("🟣 Raw History Received:", pastTx) // DEBUG LOG
-
-      // FREELANCER HISTORY RULES:
-      // 1. I signed the transaction (Account === Me)
-      // 2. The type is COMPLETED (I successfully unlocked it)
-      const myClaims = pastTx.filter(tx => {
-          return tx.account === wallet.address && tx.type === 'COMPLETED'
-      })
-
-      console.log("🟣 Filtered Claims:", myClaims) // DEBUG LOG
-
+      const myClaims = pastTx.filter(tx => tx.account === wallet.address && tx.type === 'COMPLETED')
       setHistory(myClaims)
       setStatus("")
-    } catch (error) {
-      console.error("❌ History Error:", error) // DEBUG LOG
-      setHistory([]) 
-      setStatus("") 
-    }
+    } catch (error) { setHistory([]); setStatus("") }
   }, [wallet])
 
-  // 3. TAB SWITCHER LOGIC
   useEffect(() => {
-    console.log("👉 Tab Switched to:", activeTab) // DEBUG LOG
-    if (activeTab === 'pending') {
-        fetchActive()
-    } else {
-        fetchPast()
-    }
+    if (activeTab === 'pending') fetchActive()
+    else fetchPast()
   }, [activeTab, fetchActive, fetchPast])
 
-  // ... (Invoice & Unlock Logic remains the same) ...
   const handleGenerateLink = () => {
-    if (!invAmount) return alert("Please enter an amount")
+    if (!invAmount) return setToast({ type: 'error', message: "Please enter an amount" }) // 👈 Toast
     const baseUrl = window.location.origin
     const link = `${baseUrl}/pay?to=${wallet.address}&amount=${invAmount}&memo=${encodeURIComponent(invMemo)}`
     setGeneratedLink(link)
     setCopied(false)
   }
 
-  const copyToClipboard = () => {
-    navigator.clipboard.writeText(generatedLink)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }
-
-  const handleAmountInput = (e) => {
-    const val = e.target.value
-    const cleanVal = val.replace(/[^0-9.]/g, '')
-    setInvAmount(cleanVal)
-  }
-
-  const handleSecretChange = (id, value) => {
-    setSecrets(prev => ({ ...prev, [id]: value }))
-  }
+  // ... (Keep copyToClipboard, handleAmountInput, handleSecretChange) ...
+  const copyToClipboard = () => { navigator.clipboard.writeText(generatedLink); setCopied(true); setTimeout(() => setCopied(false), 2000) }
+  const handleAmountInput = (e) => { const cleanVal = e.target.value.replace(/[^0-9.]/g, ''); setInvAmount(cleanVal) }
+  const handleSecretChange = (id, value) => { setSecrets(prev => ({ ...prev, [id]: value })) }
 
   const handleUnlock = async (index) => {
     const secret = secrets[index]
-    if (!secret) return alert("Please enter Secret!")
+    if (!secret) return setToast({ type: 'error', message: "Please enter the Secret Key!" }) // 👈 Toast
+    
     const escrow = escrows.find(e => e.index === index)
-    if (!escrow.realSequence || escrow.realSequence === "ERROR") return alert("Error: ID missing")
+    if (!escrow.realSequence || escrow.realSequence === "ERROR") return setToast({ type: 'error', message: "Error: ID missing, try refreshing" })
 
+    setIsProcessing(true)
     try {
       await claimEscrow(wallet, escrow.Account, escrow.realSequence, escrow.Condition, secret)
-      alert("✅ Success! Money Unlocked.")
       setSecrets(prev => ({ ...prev, [index]: '' }))
-      fetchActive() 
+      await fetchActive() 
+      setToast({ type: 'success', message: "Payment Unlocked Successfully!" }) // 👈 Toast
     } catch (error) {
-      alert("Error: " + error.message)
+      setToast({ type: 'error', message: "Unlock Failed: " + error.message }) // 👈 Toast
+    } finally {
+      setIsProcessing(false)
     }
   }
 
@@ -133,20 +96,18 @@ export function Dashboard({ wallet }) {
   return (
     <div className="pt-24 px-4 max-w-4xl mx-auto pb-20">
       
+      {/* 👇 UI INJECTION */}
+      {isProcessing && <LoadingOverlay message="Unlocking Funds..." />}
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+
       {/* HEADER */}
       <div className="flex justify-between items-end mb-6">
         <div>
           <h2 className="text-3xl font-bold text-white">Freelancer Dashboard</h2>
           <p className="text-slate-400 text-sm">Incoming Payments</p>
         </div>
-        <button 
-          onClick={() => setShowInvoiceMaker(!showInvoiceMaker)}
-          className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition ${
-              showInvoiceMaker ? "bg-slate-700 text-slate-300" : "bg-blue-600 hover:bg-blue-500 text-white shadow-lg"
-          }`}
-        >
-          {showInvoiceMaker ? <X size={18} /> : <Plus size={18} />}
-          {showInvoiceMaker ? "Close" : "Create Request"}
+        <button onClick={() => setShowInvoiceMaker(!showInvoiceMaker)} className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition ${showInvoiceMaker ? "bg-slate-700 text-slate-300" : "bg-blue-600 hover:bg-blue-500 text-white shadow-lg"}`}>
+          {showInvoiceMaker ? <X size={18} /> : <Plus size={18} />} {showInvoiceMaker ? "Close" : "Create Request"}
         </button>
       </div>
 
@@ -168,19 +129,15 @@ export function Dashboard({ wallet }) {
         </div>
       )}
 
-      {/* TABS */}
+      {/* TABS (Same as before) */}
       <div className="flex gap-4 mb-6 border-b border-slate-800 pb-1">
-        <button onClick={() => setActiveTab('pending')} className={`flex items-center gap-2 pb-2 px-2 text-sm font-bold border-b-2 transition ${activeTab === 'pending' ? "border-blue-500 text-blue-400" : "border-transparent text-slate-500 hover:text-white"}`}>
-            <Activity size={16} /> Pending
-        </button>
-        <button onClick={() => setActiveTab('history')} className={`flex items-center gap-2 pb-2 px-2 text-sm font-bold border-b-2 transition ${activeTab === 'history' ? "border-blue-500 text-blue-400" : "border-transparent text-slate-500 hover:text-white"}`}>
-            <History size={16} /> Completed
-        </button>
+        <button onClick={() => setActiveTab('pending')} className={`flex items-center gap-2 pb-2 px-2 text-sm font-bold border-b-2 transition ${activeTab === 'pending' ? "border-blue-500 text-blue-400" : "border-transparent text-slate-500 hover:text-white"}`}><Activity size={16} /> Pending</button>
+        <button onClick={() => setActiveTab('history')} className={`flex items-center gap-2 pb-2 px-2 text-sm font-bold border-b-2 transition ${activeTab === 'history' ? "border-blue-500 text-blue-400" : "border-transparent text-slate-500 hover:text-white"}`}><History size={16} /> Completed</button>
       </div>
 
       {status && <div className="bg-blue-900/30 text-blue-200 p-3 rounded-lg mb-4 text-sm animate-pulse">{status}</div>}
 
-      {/* PENDING VIEW */}
+      {/* PENDING VIEW (Same as before) */}
       {activeTab === 'pending' && (
         <div className="grid gap-4">
             {escrows.length === 0 && !status && <div className="text-center py-10 border border-dashed border-slate-700 rounded-xl bg-slate-900/50 text-slate-500">No pending payments.</div>}
@@ -205,23 +162,15 @@ export function Dashboard({ wallet }) {
         </div>
       )}
 
-      {/* HISTORY VIEW */}
+      {/* HISTORY VIEW (Same as before) */}
       {activeTab === 'history' && (
         <div className="grid gap-4">
-            {/* If empty, show message */}
-            {history.length === 0 && !status && (
-                <div className="text-center py-10 border border-dashed border-slate-700 rounded-xl bg-slate-900/50 text-slate-500">
-                    No past payments found.
-                </div>
-            )}
-            
+            {history.length === 0 && !status && <div className="text-center py-10 border border-dashed border-slate-700 rounded-xl bg-slate-900/50 text-slate-500">No past payments found.</div>}
             {history.map((tx) => (
             <div key={tx.id} className="bg-slate-900/50 border border-slate-800 p-4 rounded-xl flex items-center justify-between gap-4 opacity-75">
                 <div className="flex-1">
                     <div className="flex items-center gap-2">
-                        <span className={`text-xs font-bold px-2 py-1 rounded uppercase ${tx.type === 'COMPLETED' ? 'bg-green-900/30 text-green-400' : 'bg-red-900/30 text-red-400'}`}>
-                            {tx.type}
-                        </span>
+                        <span className={`text-xs font-bold px-2 py-1 rounded uppercase ${tx.type === 'COMPLETED' ? 'bg-green-900/30 text-green-400' : 'bg-red-900/30 text-red-400'}`}>{tx.type}</span>
                         <span className="text-xs text-slate-500">{tx.date}</span>
                     </div>
                     <p className="text-xs text-slate-500 mt-1 font-mono break-all">ID: {tx.sequence} | TX: {tx.txHash}</p>

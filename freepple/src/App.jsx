@@ -1,68 +1,52 @@
 import { useState } from 'react'
+import { BrowserRouter, Routes, Route, Link } from 'react-router-dom'
 import { Navbar } from './components/Navbar'
-import { Card } from './components/Card'
-import { GlowButton } from './components/GlowButton'
-import { getDevWallet, createEscrow, claimEscrow } from './utils/xrplManager' // Import new function
+import { Pay } from './pages/Pay'
+import { Dashboard } from './pages/Dashboard'
+import { getDevWallet } from './utils/xrplManager' 
 
 function App() {
-  const [logs, setLogs] = useState([])
-  const addLog = (msg) => setLogs(prev => [...prev, msg])
+  const [wallet, setWallet] = useState(null)
+  const [loading, setLoading] = useState(false)
 
-  const runFullCycle = async () => {
-    setLogs([])
-    addLog("⏳ Starting Full Lifecycle Test...")
-
+  // Global Connect Handler
+  const handleConnect = async () => {
+    setLoading(true)
     try {
-      // 1. Get Wallet
-      addLog("💰 Step 1: Funding Wallet...")
-      const wallet = await getDevWallet()
-      addLog(`✅ Wallet: ${wallet.address}`)
-
-      // 2. Lock Funds
-      addLog("🔒 Step 2: Locking 10 XRP...")
-      // Note: We are locking money to OURSELVES to make the test simple
-      const lockResult = await createEscrow(wallet, "10", wallet.address)
-      
-      addLog(`✅ Locked! ID (Seq): ${lockResult.sequence}`)
-      addLog(`🔑 Secret: ${lockResult.secret}`)
-      console.log("👉 DEBUG SEQUENCE:", lockResult.sequence)
-      // 3. Unlock Funds
-      addLog("🔓 Step 3: Claiming Funds...")
-      const claimHash = await claimEscrow(
-        wallet,                // Claimer
-        wallet.address,        // Owner (Client)
-        lockResult.sequence,   // The Escrow ID
-        lockResult.condition,  // The Lock
-        lockResult.secret      // The Key
-      )
-      
-      addLog(`✅ SUCCESS! Money Released.`)
-      addLog(`📜 Claim Tx: ${claimHash}`)
-
-    } catch (error) {
-      console.error(error)
-      addLog(`❌ ERROR: ${error.message}`)
+      const _wallet = await getDevWallet()
+      setWallet(_wallet)
+    } catch (e) {
+      console.error(e)
     }
+    setLoading(false)
   }
 
   return (
-    <div className="min-h-screen bg-slate-900 text-white p-10 font-mono">
-      <Navbar />
-      <div className="max-w-2xl mx-auto mt-20">
-        <Card title="The Final Exam">
-          <GlowButton onClick={runFullCycle}>
-            🚀 Run Full Cycle (Lock & Unlock)
-          </GlowButton>
-          <div className="mt-8 bg-black border border-slate-800 p-4 rounded-xl h-64 overflow-y-auto text-xs">
-            {logs.map((log, i) => (
-              <div key={i} className="mb-2 pb-1 border-b border-slate-900/50 text-slate-300">
-                {log}
-              </div>
-            ))}
-          </div>
-        </Card>
+    <BrowserRouter>
+      <div className="min-h-screen pb-20 bg-slate-900 text-white font-sans selection:bg-blue-500 selection:text-white">
+        
+        {/* Pass loading state so Navbar can show a spinner if needed */}
+        <Navbar onConnect={handleConnect} walletAddress={wallet?.address} />
+
+        {/* Temporary Navigation for Devs */}
+        <nav className="fixed bottom-6 right-6 flex gap-3 z-50">
+          <Link to="/pay" className="bg-slate-800 border border-slate-700 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-lg text-xs font-bold shadow-xl transition">
+            Create Payment
+          </Link>
+          <Link to="/dashboard" className="bg-slate-800 border border-slate-700 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-lg text-xs font-bold shadow-xl transition">
+            Freelancer Dash
+          </Link>
+        </nav>
+
+        <Routes>
+          {/* Default to Pay Page */}
+          <Route path="/" element={<Pay wallet={wallet} onConnect={handleConnect} />} />
+          <Route path="/pay" element={<Pay wallet={wallet} onConnect={handleConnect} />} />
+          <Route path="/dashboard" element={<Dashboard wallet={wallet} />} />
+        </Routes>
+
       </div>
-    </div>
+    </BrowserRouter>
   )
 }
 

@@ -1,39 +1,69 @@
 import { useState } from 'react'
 import { Navbar } from './components/Navbar'
-import { getDevWallet, createEscrow } from './utils/xrplManager' // Import your new backend file
+import { Card } from './components/Card'
+import { GlowButton } from './components/GlowButton'
+import { getDevWallet, createEscrow, claimEscrow } from './utils/xrplManager' // Import new function
 
 function App() {
-  const [wallet, setWallet] = useState(null)
-  const [loading, setLoading] = useState(false)
+  const [logs, setLogs] = useState([])
+  const addLog = (msg) => setLogs(prev => [...prev, msg])
 
-  const handleConnect = async () => {
-    setLoading(true)
+  const runFullCycle = async () => {
+    setLogs([])
+    addLog("⏳ Starting Full Lifecycle Test...")
+
     try {
-      // Triggers your backend code
-      const data = await getDevWallet()
-      setWallet(data.wallet) // Save the wallet to state
-      alert(`Success! Funded with ${data.balance} XRP`)
+      // 1. Get Wallet
+      addLog("💰 Step 1: Funding Wallet...")
+      const wallet = await getDevWallet()
+      addLog(`✅ Wallet: ${wallet.address}`)
+
+      // 2. Lock Funds
+      addLog("🔒 Step 2: Locking 10 XRP...")
+      // Note: We are locking money to OURSELVES to make the test simple
+      const lockResult = await createEscrow(wallet, "10", wallet.address)
+      
+      addLog(`✅ Locked! ID (Seq): ${lockResult.sequence}`)
+      addLog(`🔑 Secret: ${lockResult.secret}`)
+      console.log("👉 DEBUG SEQUENCE:", lockResult.sequence)
+      // 3. Unlock Funds
+      addLog("🔓 Step 3: Claiming Funds...")
+      const claimHash = await claimEscrow(
+        wallet,                // Claimer
+        wallet.address,        // Owner (Client)
+        lockResult.sequence,   // The Escrow ID
+        lockResult.condition,  // The Lock
+        lockResult.secret      // The Key
+      )
+      
+      addLog(`✅ SUCCESS! Money Released.`)
+      addLog(`📜 Claim Tx: ${claimHash}`)
+
     } catch (error) {
       console.error(error)
-      alert("Error: " + error.message)
+      addLog(`❌ ERROR: ${error.message}`)
     }
-    setLoading(false)
   }
 
-  const runTest = async () => {
-  // 1. Get a funded wallet (Sender)
-  const wallet = await getDevWallet()
-  
-  // 2. Send money to ITSELF (Easiest test case)
-  // We lock 5 XRP. The wallet is both sender and receiver.
-  const result = await createEscrow(wallet, "5", wallet.address)
-  
-  alert(`Escrow Created! Secret: ${result.secret}`)
-}
-
-return (
-  <button onClick={runTest}>TEST BACKEND</button>
-)
+  return (
+    <div className="min-h-screen bg-slate-900 text-white p-10 font-mono">
+      <Navbar />
+      <div className="max-w-2xl mx-auto mt-20">
+        <Card title="The Final Exam">
+          <GlowButton onClick={runFullCycle}>
+            🚀 Run Full Cycle (Lock & Unlock)
+          </GlowButton>
+          <div className="mt-8 bg-black border border-slate-800 p-4 rounded-xl h-64 overflow-y-auto text-xs">
+            {logs.map((log, i) => (
+              <div key={i} className="mb-2 pb-1 border-b border-slate-900/50 text-slate-300">
+                {log}
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
+    </div>
+  )
 }
 
 export default App

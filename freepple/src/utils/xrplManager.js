@@ -92,10 +92,49 @@ export async function createEscrow(senderWallet, amountXRP, destinationAddress) 
     console.log("✅ SUCCESS: Funds Locked!")
     return {
       txHash: result.result.hash,
+      sequence: result.result.Sequence || result.result.tx_json.Sequence,
       secret: secretHex,    // Display this to the user!
       condition: condition
     }
   } else {
     throw new Error(`Tx Failed: ${result.result.meta.TransactionResult}`)
+  }
+}
+
+/**
+ * CLAIM LOGIC: Unlocks the funds using the Secret
+ * @param {Object} wallet - The Freelancer's wallet
+ * @param {string} ownerAddress - The Client's address (who created the lock)
+ * @param {number} escrowSequence - The Tx Sequence number of the creation (The ID)
+ * @param {string} condition - The Lock string (A025...)
+ * @param {string} secret - The Secret Key (Preimage)
+ */
+export async function claimEscrow(wallet, ownerAddress, escrowSequence, condition, secret) {
+  const _client = await connectClient()
+
+  console.log("🔓 Constructing Skeleton Key...")
+
+  // 1. GENERATE THE FULFILLMENT (The Key)
+  // Structure: [A0 24] [80 20 SECRET...]
+  // A0 = Composite, 24 = Length 36 (0x24), 80 = Type, 20 = Length 32
+  const fulfillment = "A0228020" + secret
+
+  const tx = {
+    TransactionType: "EscrowFinish",
+    Account: wallet.address,
+    Owner: ownerAddress, // The person who locked the money
+    OfferSequence: escrowSequence, // The ID of the lock
+    Condition: condition,
+    Fulfillment: fulfillment 
+  }
+
+  console.log("🚀 Submitting Claim...")
+  const result = await _client.submitAndWait(tx, { wallet })
+
+  if (result.result.meta.TransactionResult === "tesSUCCESS") {
+    console.log("✅ MONEY UNLOCKED!")
+    return result.result.hash
+  } else {
+    throw new Error(`Claim Failed: ${result.result.meta.TransactionResult}`)
   }
 }

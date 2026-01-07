@@ -8,7 +8,7 @@ export function Navbar({ onConnect, walletAddress }) {
         <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-xl">
           🔗
         </div>
-        <span className="font-bold text-xl tracking-tight text-white">TrustLink</span>
+        <span className="font-bold text-xl tracking-tight text-white">Freepple</span>
       </div>
 
       {/* Right: Connect Button Placeholder */}

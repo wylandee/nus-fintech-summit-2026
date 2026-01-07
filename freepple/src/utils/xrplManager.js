@@ -1,11 +1,10 @@
 import * as xrpl from 'xrpl'
 
-// 1. Singleton Client (So we don't open 100 connections)
+// 1. Singleton Client
 const SERVER_URL = "wss://s.altnet.rippletest.net:51233/"
 let client = null
 
 export async function connectClient() {
-  // If already connected, reuse it
   if (client && client.isConnected()) return client
 
   console.log("⏳ Connecting to Testnet...")
@@ -16,33 +15,17 @@ export async function connectClient() {
   return client
 }
 
-// 2. The Funding Function (Your code, wrapped)
+// 2. Fund Wallet
 export async function getDevWallet() {
   const _client = await connectClient()
-
   console.log("💸 Asking Faucet for funds...")
-  
-  // This function does the heavy lifting: 
-  // 1. Generates keys 
-  // 2. Talks to the Faucet 
-  // 3. Waits for the ledger to confirm the balance
   const fund_result = await _client.fundWallet()
-
   const wallet = fund_result.wallet
-  const balance = fund_result.balance
-  
   console.log(`✅ Wallet Funded: ${wallet.address}`)
-  console.log(`💰 Balance: ${balance} XRP`)
-  
   return wallet
 }
 
-/**
- * CORE LOGIC: Creates the escrow
- * @param {Object} senderWallet - The wallet object sending the money
- * @param {string} amountXRP - Amount in XRP (string, e.g. "10")
- * @param {string} destinationAddress - The freelancer's address
- */
+// 3. Create Escrow
 export async function createEscrow(senderWallet, amountXRP, destinationAddress, durationHours = 24) {
   const _client = await connectClient()
   console.log("🔒 Generating Security Keys...")
@@ -56,8 +39,6 @@ export async function createEscrow(senderWallet, amountXRP, destinationAddress, 
 
   const condition = "A0258020" + hashHex + "810120"
 
-  // 🕒 TIME CALCULATION:
-  // XRPL Time is seconds since 2000, not 1970. We use a helper helper.
   const expiryDate = new Date(Date.now() + (durationHours * 60 * 60 * 1000))
   const rippleCancelAfter = xrpl.isoTimeToRippleTime(expiryDate.toISOString())
 
@@ -68,7 +49,7 @@ export async function createEscrow(senderWallet, amountXRP, destinationAddress, 
     Amount: xrpl.xrpToDrops(amountXRP),
     Condition: condition, 
     DestinationTag: 2026,
-    CancelAfter: rippleCancelAfter // 👈 Set the deadline on the ledger
+    CancelAfter: rippleCancelAfter 
   }
 
   console.log("🚀 Submitting Escrow...")
@@ -80,57 +61,24 @@ export async function createEscrow(senderWallet, amountXRP, destinationAddress, 
       sequence: result.result.Sequence || result.result.tx_json.Sequence,
       secret: secretHex,
       condition: condition,
-      expiry: expiryDate // Return this so UI can show it
+      expiry: expiryDate 
     }
   } else {
     throw new Error(`Tx Failed: ${result.result.meta.TransactionResult}`)
   }
 }
 
-// 2. ADD THIS NEW FUNCTION: The Refund Mechanism
-export async function cancelEscrow(wallet, ownerAddress, escrowSequence) {
-  const _client = await connectClient()
-  console.log("⏳ Attempting Refund...")
-
-  const tx = {
-    TransactionType: "EscrowCancel",
-    Account: wallet.address,
-    Owner: ownerAddress, // usually the same as wallet.address
-    OfferSequence: escrowSequence
-  }
-
-  const result = await _client.submitAndWait(tx, { wallet })
-
-  if (result.result.meta.TransactionResult === "tesSUCCESS") {
-    console.log("✅ REFUND SUCCESS!")
-    return result.result.hash
-  } else {
-    throw new Error(`Refund Failed: ${result.result.meta.TransactionResult} (Is it too early?)`)
-  }
-}
-/**
- * CLAIM LOGIC: Unlocks the funds using the Secret
- * @param {Object} wallet - The Freelancer's wallet
- * @param {string} ownerAddress - The Client's address (who created the lock)
- * @param {number} escrowSequence - The Tx Sequence number of the creation (The ID)
- * @param {string} condition - The Lock string (A025...)
- * @param {string} secret - The Secret Key (Preimage)
- */
+// 4. Claim Escrow
 export async function claimEscrow(wallet, ownerAddress, escrowSequence, condition, secret) {
   const _client = await connectClient()
-
   console.log("🔓 Constructing Skeleton Key...")
-
-  // 1. GENERATE THE FULFILLMENT (The Key)
-  // Structure: [A0 24] [80 20 SECRET...]
-  // A0 = Composite, 24 = Length 36 (0x24), 80 = Type, 20 = Length 32
   const fulfillment = "A0228020" + secret
 
   const tx = {
     TransactionType: "EscrowFinish",
     Account: wallet.address,
-    Owner: ownerAddress, // The person who locked the money
-    OfferSequence: escrowSequence, // The ID of the lock
+    Owner: ownerAddress, 
+    OfferSequence: escrowSequence, 
     Condition: condition,
     Fulfillment: fulfillment 
   }
@@ -144,4 +92,103 @@ export async function claimEscrow(wallet, ownerAddress, escrowSequence, conditio
   } else {
     throw new Error(`Claim Failed: ${result.result.meta.TransactionResult}`)
   }
+}
+
+// 5. Cancel Escrow (Refund)
+export async function cancelEscrow(wallet, ownerAddress, escrowSequence) {
+  const _client = await connectClient()
+  console.log("⏳ Attempting Refund...")
+
+  const tx = {
+    TransactionType: "EscrowCancel",
+    Account: wallet.address,
+    Owner: ownerAddress, 
+    OfferSequence: escrowSequence
+  }
+
+  const result = await _client.submitAndWait(tx, { wallet })
+
+  if (result.result.meta.TransactionResult === "tesSUCCESS") {
+    console.log("✅ REFUND SUCCESS! Money returned.")
+    return result.result.hash
+  } else {
+    throw new Error(`Refund Failed: ${result.result.meta.TransactionResult}`)
+  }
+}
+
+/**
+ * 6. HISTORY LOGIC (Ultimate Parsers)
+ */
+export async function getEscrowHistory(address) {
+  const client = await connectClient()
+  
+  console.log("📜 Fetching History for:", address)
+
+  const response = await client.request({
+    command: "account_tx",
+    account: address,
+    ledger_index_min: -1, 
+    ledger_index_max: -1,
+    limit: 50,
+    binary: false
+  })
+
+  const txs = response.result.transactions || []
+  console.log(`🔎 RAW LEDGER RETURN: Found ${txs.length} items.`)
+
+  const relevantTypes = ["EscrowFinish", "EscrowCancel", "EscrowCreate"]
+
+  const history = txs.map(t => {
+    // 🛠️ ULTIMATE PARSER: Check all possible locations for data
+    const tx = t.tx || t.tx_json || t
+    const meta = t.meta || tx.meta || {}
+
+    // 🛑 DEBUGGING: If we still can't find the type, log the keys to see what's wrong
+    if (!tx || !tx.TransactionType) {
+        console.warn("⚠️ Skipping item (Missing TransactionType). Keys found:", Object.keys(t))
+        return null 
+    }
+
+    const type = tx.TransactionType
+    const result = meta.TransactionResult
+
+    // 1. Filter out non-Escrow transactions (like Payments from the faucet)
+    if (!relevantTypes.includes(type)) {
+        // console.log(`   ℹ️ Ignored non-escrow tx: ${type}`)
+        return null
+    }
+
+    // 2. Filter out failed transactions
+    if (result !== "tesSUCCESS") {
+        console.log(`   ❌ Found failed ${type}: ${result}`)
+        return null
+    }
+
+    console.log(`   ✅ Found valid entry: ${type}`)
+
+    // Format the valid item
+    const date = (tx.date || t.date)
+        ? new Date(((tx.date || t.date) + 946684800) * 1000).toLocaleString() 
+        : "Unknown Date"
+    
+    let label = "UNKNOWN"
+    if (type === "EscrowFinish") label = "COMPLETED" 
+    if (type === "EscrowCancel") label = "REFUNDED"
+    if (type === "EscrowCreate") label = "CREATED" 
+
+    return {
+      id: tx.hash || t.hash,
+      type: label,
+      date: date,
+      sequence: tx.OfferSequence || tx.Sequence, 
+      account: tx.Account, 
+      owner: tx.Owner, 
+      txHash: tx.hash || t.hash
+    }
+  })
+  
+  .filter(item => item !== null)
+
+  console.log(`🎉 Final Clean History Count: ${history.length}`)
+  return history
 }

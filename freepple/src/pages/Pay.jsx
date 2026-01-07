@@ -11,10 +11,11 @@ export function Pay({ wallet, onConnect }) {
   const [amount, setAmount] = useState('')
   const [destination, setDestination] = useState('')
   const [memo, setMemo] = useState('')
-  // 👇 NEW: Duration State (Default 24 hours)
-  const [duration, setDuration] = useState(24)
   
-  // New State: Are the fields locked by the URL?
+  // Duration State (Default 24 hours)
+  const [duration, setDuration] = useState(24)
+
+  // Invoice Lock State
   const [isLocked, setIsLocked] = useState(false)
   
   const [isLoading, setIsLoading] = useState(false)
@@ -25,29 +26,38 @@ export function Pay({ wallet, onConnect }) {
     const urlAmount = searchParams.get('amount')
     const urlMemo = searchParams.get('memo')
 
-    // If URL data exists, fill it AND lock the fields
     if (urlTo && urlAmount) {
       setDestination(urlTo)
       setAmount(urlAmount)
       if (urlMemo) setMemo(urlMemo)
-      
-      setIsLocked(true) // <--- LOCK ACTIVATED
+      setIsLocked(true)
     }
   }, [searchParams])
 
+  // 👇 INPUT SANITIZER: Prevents negative numbers
+  const handleAmountChange = (e) => {
+    const val = e.target.value
+    // Regex: Remove anything that is NOT a number (0-9) or a decimal point (.)
+    // This strips out the minus sign '-' automatically.
+    const cleanVal = val.replace(/[^0-9.]/g, '')
+    setAmount(cleanVal)
+  }
+
   const handleLock = async () => {
     if (!wallet) return
+    if (!amount || parseFloat(amount) <= 0) return alert("Please enter a valid amount")
+
     setIsLoading(true)
     try {
-      // 👇 Pass 'duration' as the 4th argument
       const result = await createEscrow(wallet, amount, destination, duration)
-      setSuccessData(result) 
+      setSuccessData(result)
     } catch (error) {
       alert("Error: " + error.message)
     }
     setIsLoading(false)
   }
 
+  // VIEW 1: Success Receipt
   if (successData) {
     return (
       <div className="pt-32 px-4 flex justify-center">
@@ -58,8 +68,19 @@ export function Pay({ wallet, onConnect }) {
               {successData.secret}
             </p>
           </div>
-          <Input label="Escrow ID" value={successData.sequence} readOnly />
-          <Input label="Transaction Hash" value={successData.txHash} readOnly />
+          
+          <div className="space-y-4">
+            <Input label="Escrow ID" value={successData.sequence} readOnly />
+            <Input label="Transaction Hash" value={successData.txHash} readOnly />
+            
+            <div className="flex justify-between text-xs text-slate-400 px-2 bg-slate-900/50 p-3 rounded border border-slate-800">
+              <span>Refund Available After:</span>
+              <span className="text-red-400 font-mono">
+                 {successData.expiry ? successData.expiry.toLocaleString() : "24 Hours"}
+              </span>
+            </div>
+          </div>
+
           <div className="mt-8">
             <GlowButton onClick={() => setSuccessData(null)} variant="secondary">Make Another Payment</GlowButton>
           </div>
@@ -68,8 +89,9 @@ export function Pay({ wallet, onConnect }) {
     )
   }
 
+  // VIEW 2: Payment Form
   return (
-    <div className="pt-32 px-4 flex justify-center">
+    <div className="pt-32 px-4 flex justify-center pb-20">
       <Card title="Secure Payment" subtitle={isLocked ? "Invoice Details Locked" : "Funds are held in XRPL Escrow"}>
         
         <Input 
@@ -77,21 +99,24 @@ export function Pay({ wallet, onConnect }) {
           value={destination} 
           onChange={(e) => setDestination(e.target.value)}
           placeholder="rRecipientAddress..."
-          readOnly={isLocked} // <--- LOCKED
+          readOnly={isLocked}
         />
         
+        {/* 👇 UPDATED INPUT: Uses the clean handler */}
         <Input 
           label="Amount (XRP)" 
           value={amount} 
-          onChange={(e) => setAmount(e.target.value)}
+          onChange={handleAmountChange} 
           placeholder="0.00"
-          readOnly={isLocked} // <--- LOCKED
+          readOnly={isLocked}
+          type="text" 
+          inputMode="decimal" // Pops up number keyboard on mobile
         />
 
-        {/* 👇 NEW: Time Limit Dropdown */}
+        {/* Auto-Refund Timer Dropdown */}
         <div className="mb-4">
           <label className="block text-slate-400 text-xs font-bold mb-2 uppercase tracking-wider">
-            Auto-Refund Timer
+            Auto-Refund Timer (Safety Net)
           </label>
           <select 
             value={duration}
@@ -100,11 +125,11 @@ export function Pay({ wallet, onConnect }) {
           >
             <option value={0.05}>⚡️ 3 Minutes (Fast Test)</option>
             <option value={1}>1 Hour</option>
-            <option value={24}>24 Hours</option>
-            <option value={168}>7 Days (Standard)</option>
+            <option value={24}>24 Hours (Standard)</option>
+            <option value={168}>7 Days (Large Projects)</option>
           </select>
           <p className="text-[10px] text-slate-500 mt-2">
-            If the freelancer does not unlock the funds by this time, you can reclaim them.
+            If the work is not unlocked by this time, you can reclaim your funds via the Dashboard.
           </p>
         </div>
 
@@ -113,10 +138,9 @@ export function Pay({ wallet, onConnect }) {
           value={memo} 
           onChange={(e) => setMemo(e.target.value)}
           placeholder="e.g. Website Design"
-          readOnly={isLocked} // <--- LOCKED
+          readOnly={isLocked}
         />
 
-        {/* Visual feedback so they know why they can't type */}
         {isLocked && (
           <div className="text-xs text-center text-yellow-500/80 mb-4 bg-yellow-500/10 p-2 rounded border border-yellow-500/20">
             🔒 Details are fixed by the invoice link.

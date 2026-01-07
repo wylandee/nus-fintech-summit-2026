@@ -1,64 +1,147 @@
+import { useState, useEffect } from 'react'
 import { Card } from '../components/Card'
-import { GlowButton } from '../components/GlowButton'
+import { claimEscrow, connectClient } from '../utils/xrplManager'
 
 export function Dashboard({ wallet }) {
-  // MOCK DATA (Until Backend arrives)
-  const myEscrows = [
-    { id: 1, amount: "500", sender: "rClient...9s2", condition: "A025...", status: "LOCKED" },
-    { id: 2, amount: "150", sender: "rClient...x8z", condition: "B055...", status: "LOCKED" },
-  ]
+  const [escrows, setEscrows] = useState([])
+  const [secrets, setSecrets] = useState({}) 
+  const [status, setStatus] = useState("Loading...")
 
-  if (!wallet) {
-    return (
-      <div className="pt-32 text-center">
-        <h2 className="text-2xl font-bold text-white mb-4">Freelancer Dashboard</h2>
-        <p className="text-slate-400 mb-6">Connect your wallet to see your incoming payments.</p>
-      </div>
-    )
+  useEffect(() => {
+    if (!wallet) return
+    
+    const fetchEscrows = async () => {
+      setStatus("Connecting to Ledger...")
+      try {
+        const client = await connectClient()
+        
+        // 1. Get Raw Objects
+        const response = await client.request({
+          command: "account_objects",
+          account: wallet.address,
+          type: "escrow",
+          ledger_index: "validated"
+        })
+        
+        const rawObjects = response.result.account_objects
+        
+        if (rawObjects.length === 0) {
+          setStatus("No Escrows Found.")
+          setEscrows([])
+          return
+        }
+
+        setStatus(`Found ${rawObjects.length} escrows. Fetching IDs...`)
+
+        // 2. Detective Work (The Fix)
+        const enrichedEscrows = await Promise.all(rawObjects.map(async (obj) => {
+          try {
+            const txResponse = await client.request({
+              command: "tx",
+              transaction: obj.PreviousTxnID
+            })
+            
+            // 🛑 THE FIX: Check both locations for the Sequence number
+            // Some nodes return it at root, others inside tx_json
+            const txData = txResponse.result.tx_json || txResponse.result
+            const foundSequence = txData.Sequence
+
+            console.log(`✅ Found ID for ${obj.PreviousTxnID}:`, foundSequence)
+
+            return {
+              ...obj,
+              realSequence: foundSequence 
+            }
+          } catch (err) {
+            console.error("❌ Failed to find ID:", err)
+            return { ...obj, realSequence: "ERROR" }
+          }
+        }))
+
+        setEscrows(enrichedEscrows)
+        setStatus("") 
+
+      } catch (error) {
+        console.error(error)
+        setStatus("Error: " + error.message)
+      }
+    }
+
+    fetchEscrows()
+  }, [wallet])
+
+  // 3. CLAIM LOGIC
+  const handleUnlock = async (index) => {
+    const secret = secrets[index]
+    if (!secret) return alert("Please enter Secret!")
+    
+    const escrow = escrows.find(e => e.index === index)
+    
+    if (!escrow.realSequence || escrow.realSequence === "ERROR") {
+      return alert("Error: Could not load the Escrow ID. Try refreshing.")
+    }
+
+    console.log(`🔓 Unlocking ID: ${escrow.realSequence} with Secret: ${secret}`)
+
+    try {
+      await claimEscrow(
+        wallet, 
+        escrow.Account, 
+        escrow.realSequence, // Now guaranteed to be a number
+        escrow.Condition, 
+        secret
+      )
+      alert("✅ Success! Money Unlocked.")
+      window.location.reload()
+    } catch (error) {
+      alert("Error: " + error.message)
+    }
   }
+
+  const handleSecretChange = (id, value) => {
+    setSecrets(prev => ({ ...prev, [id]: value }))
+  }
+
+  if (!wallet) return <div className="pt-32 text-center text-white">Please Connect Wallet</div>
 
   return (
     <div className="pt-24 px-4 max-w-4xl mx-auto">
-      {/* Stats Row */}
-      <div className="grid grid-cols-2 gap-4 mb-8">
-        <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
-          <p className="text-slate-400 text-sm font-bold uppercase">Total Locked</p>
-          <p className="text-3xl font-bold text-white">650 XRP</p>
-        </div>
-        <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
-          <p className="text-slate-400 text-sm font-bold uppercase">Ready to Claim</p>
-          <p className="text-3xl font-bold text-green-400">0 XRP</p>
-        </div>
-      </div>
+      <h2 className="text-2xl font-bold text-white mb-6">Incoming Payments</h2>
+      
+      {status && <div className="bg-blue-900/50 text-blue-200 p-4 rounded mb-4 animate-pulse">{status}</div>}
 
-      {/* Escrow Table */}
-      <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-xl">
-        <div className="p-6 border-b border-slate-800 flex justify-between items-center">
-          <h3 className="text-xl font-bold text-white">Active Jobs</h3>
-          <span className="text-xs bg-blue-900 text-blue-300 px-3 py-1 rounded-full">2 Active</span>
-        </div>
-
-        <div className="divide-y divide-slate-800">
-          {myEscrows.map((escrow) => (
-            <div key={escrow.id} className="p-6 flex items-center justify-between hover:bg-slate-800/50 transition">
-              <div>
-                <p className="font-bold text-white text-lg">{escrow.amount} XRP</p>
-                <p className="text-slate-500 text-sm font-mono">From: {escrow.sender}</p>
-              </div>
+      <div className="grid gap-4">
+        {escrows.map((escrow) => (
+          <div key={escrow.index} className="bg-slate-900 border border-slate-800 p-6 rounded-xl flex flex-col md:flex-row items-center justify-between gap-6 shadow-lg">
+            
+            <div className="flex-1">
+              <span className="text-2xl font-bold text-white block">
+                {parseInt(escrow.Amount) / 1000000} XRP
+              </span>
               
-              <div className="flex items-center gap-4">
-                 {/* The Unlock Input (Freelancer pastes the secret here) */}
-                <input 
-                  placeholder="Paste Secret Code" 
-                  className="bg-slate-950 border border-slate-700 rounded px-3 py-2 text-sm text-white w-40"
-                />
-                <button className="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-lg font-bold text-sm">
-                  Unlock 🔓
-                </button>
-              </div>
+              <span className="text-xs text-green-400 font-mono font-bold bg-green-900/30 px-2 py-1 rounded">
+                ID: {escrow.realSequence}
+              </span>
+              
+              <p className="text-xs text-slate-500 mt-2">From: {escrow.Account}</p>
             </div>
-          ))}
-        </div>
+
+            <div className="flex gap-3">
+              <input 
+                placeholder="Paste Secret Key" 
+                className="bg-slate-950 border border-slate-700 text-white rounded px-3 py-2 w-48 focus:border-blue-500 outline-none transition"
+                onChange={(e) => handleSecretChange(escrow.index, e.target.value)}
+              />
+              <button 
+                onClick={() => handleUnlock(escrow.index)}
+                className="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded font-bold shadow-lg shadow-green-900/20"
+              >
+                Unlock 🔓
+              </button>
+            </div>
+
+          </div>
+        ))}
       </div>
     </div>
   )

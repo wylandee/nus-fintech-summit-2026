@@ -57,7 +57,7 @@ If the client does not hand over the Secret Key, freelancers are protected
 
 ---
 
-## 🏃‍♂️ How to Run Locally
+## How to Run Locally
 
 ### Prerequisites
 * Node.js (v18+)

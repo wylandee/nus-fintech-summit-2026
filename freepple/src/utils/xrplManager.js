@@ -1,9 +1,9 @@
 import * as xrpl from 'xrpl'
 
-// 1. Singleton Client
 const SERVER_URL = "wss://s.altnet.rippletest.net:51233/"
 let client = null
 
+// 1. Singleton Client
 export async function connectClient() {
   if (client && client.isConnected()) return client
 
@@ -30,6 +30,9 @@ export async function createEscrow(senderWallet, amountXRP, destinationAddress, 
   const _client = await connectClient()
   console.log("🔒 Generating Security Keys...")
 
+  // 👇 CRITICAL FIX: Re-create the Wallet Instance from the seed
+  const signerWallet = xrpl.Wallet.fromSeed(senderWallet.seed)
+
   const randomBytes = window.crypto.getRandomValues(new Uint8Array(32))
   const secretHex = Array.from(randomBytes).map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase()
   
@@ -44,7 +47,7 @@ export async function createEscrow(senderWallet, amountXRP, destinationAddress, 
 
   const escrowTx = {
     TransactionType: "EscrowCreate",
-    Account: senderWallet.address,
+    Account: signerWallet.address, 
     Destination: destinationAddress,
     Amount: xrpl.xrpToDrops(amountXRP),
     Condition: condition, 
@@ -53,7 +56,8 @@ export async function createEscrow(senderWallet, amountXRP, destinationAddress, 
   }
 
   console.log("🚀 Submitting Escrow...")
-  const result = await _client.submitAndWait(escrowTx, { wallet: senderWallet })
+  // Use signerWallet instead of senderWallet
+  const result = await _client.submitAndWait(escrowTx, { wallet: signerWallet })
 
   if (result.result.meta.TransactionResult === "tesSUCCESS") {
     return {
@@ -72,11 +76,15 @@ export async function createEscrow(senderWallet, amountXRP, destinationAddress, 
 export async function claimEscrow(wallet, ownerAddress, escrowSequence, condition, secret) {
   const _client = await connectClient()
   console.log("🔓 Constructing Skeleton Key...")
+  
+  // 👇 FIX: Re-create the Wallet Instance
+  const signerWallet = xrpl.Wallet.fromSeed(wallet.seed)
+
   const fulfillment = "A0228020" + secret
 
   const tx = {
     TransactionType: "EscrowFinish",
-    Account: wallet.address,
+    Account: signerWallet.address,
     Owner: ownerAddress, 
     OfferSequence: escrowSequence, 
     Condition: condition,
@@ -84,7 +92,7 @@ export async function claimEscrow(wallet, ownerAddress, escrowSequence, conditio
   }
 
   console.log("🚀 Submitting Claim...")
-  const result = await _client.submitAndWait(tx, { wallet })
+  const result = await _client.submitAndWait(tx, { wallet: signerWallet })
 
   if (result.result.meta.TransactionResult === "tesSUCCESS") {
     console.log("✅ MONEY UNLOCKED!")
@@ -99,14 +107,17 @@ export async function cancelEscrow(wallet, ownerAddress, escrowSequence) {
   const _client = await connectClient()
   console.log("⏳ Attempting Refund...")
 
+  // 👇 FIX: Re-create the Wallet Instance
+  const signerWallet = xrpl.Wallet.fromSeed(wallet.seed)
+
   const tx = {
     TransactionType: "EscrowCancel",
-    Account: wallet.address,
+    Account: signerWallet.address,
     Owner: ownerAddress, 
     OfferSequence: escrowSequence
   }
 
-  const result = await _client.submitAndWait(tx, { wallet })
+  const result = await _client.submitAndWait(tx, { wallet: signerWallet })
 
   if (result.result.meta.TransactionResult === "tesSUCCESS") {
     console.log("✅ REFUND SUCCESS! Money returned.")
@@ -116,9 +127,7 @@ export async function cancelEscrow(wallet, ownerAddress, escrowSequence) {
   }
 }
 
-/**
- * 6. HISTORY LOGIC (Ultimate Parsers)
- */
+// 6. History Logic
 export async function getEscrowHistory(address) {
   const client = await connectClient()
   
@@ -139,34 +148,19 @@ export async function getEscrowHistory(address) {
   const relevantTypes = ["EscrowFinish", "EscrowCancel", "EscrowCreate"]
 
   const history = txs.map(t => {
-    // 🛠️ ULTIMATE PARSER: Check all possible locations for data
     const tx = t.tx || t.tx_json || t
     const meta = t.meta || tx.meta || {}
 
-    // 🛑 DEBUGGING: If we still can't find the type, log the keys to see what's wrong
     if (!tx || !tx.TransactionType) {
-        console.warn("⚠️ Skipping item (Missing TransactionType). Keys found:", Object.keys(t))
         return null 
     }
 
     const type = tx.TransactionType
     const result = meta.TransactionResult
 
-    // 1. Filter out non-Escrow transactions (like Payments from the faucet)
-    if (!relevantTypes.includes(type)) {
-        // console.log(`   ℹ️ Ignored non-escrow tx: ${type}`)
-        return null
-    }
+    if (!relevantTypes.includes(type)) return null
+    if (result !== "tesSUCCESS") return null
 
-    // 2. Filter out failed transactions
-    if (result !== "tesSUCCESS") {
-        console.log(`   ❌ Found failed ${type}: ${result}`)
-        return null
-    }
-
-    console.log(`   ✅ Found valid entry: ${type}`)
-
-    // Format the valid item
     const date = (tx.date || t.date)
         ? new Date(((tx.date || t.date) + 946684800) * 1000).toLocaleString() 
         : "Unknown Date"
@@ -186,41 +180,39 @@ export async function getEscrowHistory(address) {
       txHash: tx.hash || t.hash
     }
   })
-  
   .filter(item => item !== null)
 
   console.log(`🎉 Final Clean History Count: ${history.length}`)
   return history
 }
 
-/**
- * 🆔 REGISTER IDENTITY (With Safety Check)
- */
+// 7. Register Identity
 export async function registerIdentity(wallet) {
   const _client = await connectClient()
   
-  // 1. SAFETY CHECK: Check Ledger one last time before spending money
-  const isAlreadyVerified = await checkIdentity(wallet.address)
+  // 👇 FIX: Re-create the Wallet Instance
+  const signerWallet = xrpl.Wallet.fromSeed(wallet.seed)
+
+  const isAlreadyVerified = await checkIdentity(signerWallet.address)
   if (isAlreadyVerified) {
     console.log("⚠️ Safety Trigger: Wallet already has a DID.")
-    return true // Return success without sending Tx
+    return true 
   }
 
   console.log("🆔 Registering DID...")
-  const didUri = "did:xrpl:testnet:" + wallet.address
+  const didUri = "did:xrpl:testnet:" + signerWallet.address
   const didData = xrpl.convertStringToHex(didUri)
 
   const tx = {
     TransactionType: "DIDSet",
-    Account: wallet.address,
+    Account: signerWallet.address,
     URI: didData,
   }
 
-  const result = await _client.submitAndWait(tx, { wallet })
+  const result = await _client.submitAndWait(tx, { wallet: signerWallet })
 
   if (result.result.meta.TransactionResult === "tesSUCCESS") {
-    // 2. CACHE IT: Save to LocalStorage so UI updates instantly next time
-    localStorage.setItem(`did_verified_${wallet.address}`, "true")
+    localStorage.setItem(`did_verified_${signerWallet.address}`, "true")
     console.log("✅ DID Registered & Cached!")
     return true
   } else {
@@ -228,11 +220,8 @@ export async function registerIdentity(wallet) {
   }
 }
 
-/**
- * 🕵️‍♂️ CHECK IDENTITY (The Bulletproof Version)
- */
+// 8. Check Identity
 export async function checkIdentity(address) {
-  // 1. FAST CHECK: Check Browser Cache first (Instant UI fix)
   if (localStorage.getItem(`did_verified_${address}`) === "true") {
     console.log("⚡️ Identity found in Local Cache")
     return true
@@ -240,26 +229,18 @@ export async function checkIdentity(address) {
 
   const _client = await connectClient()
   try {
-    // 2. DEEP CHECK: Fetch ALL objects from Ledger
     const response = await _client.request({
       command: "account_objects",
       account: address,
       ledger_index: "validated",
-      limit: 400 // Fetch everything
+      limit: 400 
     })
 
     const objects = response.result.account_objects
-    
-    // Debug: Print types found so we can see if DID is hiding
-    const typesFound = objects.map(o => o.LedgerEntryType)
-    console.log(`🔎 Found Object Types for ${address}:`, typesFound)
-
-    // 3. FUZZY FIND: Check for "DID" (Case Insensitive)
     const hasDID = objects.some(obj => 
       obj.LedgerEntryType && obj.LedgerEntryType.toUpperCase() === "DID"
     )
     
-    // 4. Update Cache if found
     if (hasDID) {
        localStorage.setItem(`did_verified_${address}`, "true")
     }

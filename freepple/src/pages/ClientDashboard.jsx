@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { cancelEscrow, connectClient, getEscrowHistory } from '../utils/xrplManager'
-import { Activity, History, Plus } from 'lucide-react'
+import { cancelEscrow, connectClient, getEscrowHistory, checkIdentity } from '../utils/xrplManager'
+import { Activity, History, Plus, BadgeCheck, AlertCircle } from 'lucide-react'
 import { LoadingOverlay } from '../components/LoadingOverlay'
 import { Toast } from '../components/Toast'
 import { ConfirmDialog } from '../components/ConfirmDialog'
@@ -13,9 +13,8 @@ export function ClientDashboard({ wallet }) {
   const [status, setStatus] = useState("Loading...")
   const [isProcessing, setIsProcessing] = useState(false)
 
-  // 🆕 NOTIFICATION STATE
-  const [toast, setToast] = useState(null) // { message, type }
-  const [confirmData, setConfirmData] = useState(null) // { escrow, title, message }
+  const [toast, setToast] = useState(null)
+  const [confirmData, setConfirmData] = useState(null) 
 
   const fetchData = useCallback(async () => {
     if (!wallet) return
@@ -26,10 +25,19 @@ export function ClientDashboard({ wallet }) {
         const response = await client.request({ command: "account_objects", account: wallet.address, type: "escrow", ledger_index: "validated" })
         const rawObjects = response.result.account_objects || []
         const mySentJobs = rawObjects.filter(obj => obj.Account === wallet.address)
+        
         const enriched = await Promise.all(mySentJobs.map(async (obj) => {
             try {
                 const tx = await client.request({ command: "tx", transaction: obj.PreviousTxnID })
-                return { ...obj, realSequence: (tx.result.tx_json || tx.result).Sequence }
+                
+                // 👇 CHECK FREELANCER VERIFICATION
+                const isVerified = await checkIdentity(obj.Destination)
+
+                return { 
+                    ...obj, 
+                    realSequence: (tx.result.tx_json || tx.result).Sequence,
+                    isDestVerified: isVerified
+                }
             } catch (e) { return { ...obj, realSequence: "UNKNOWN" } }
         }))
         setSentEscrows(enriched)
@@ -46,7 +54,6 @@ export function ClientDashboard({ wallet }) {
 
   useEffect(() => { fetchData() }, [fetchData])
 
-  // 1. TRIGGER CONFIRMATION DIALOG (Instead of window.confirm)
   const initiateRefund = (escrow) => {
     setConfirmData({
         escrow: escrow,
@@ -55,24 +62,23 @@ export function ClientDashboard({ wallet }) {
     })
   }
 
-  // 2. EXECUTE ACTION (Passed to Dialog)
   const executeRefund = async () => {
     if (!confirmData) return
-    setConfirmData(null) // Close modal
+    setConfirmData(null) 
     setIsProcessing(true)
 
     try {
       await cancelEscrow(wallet, wallet.address, confirmData.escrow.realSequence)
       await fetchData() 
-      setToast({ type: 'success', message: "Refund Successful! Money returned." }) // 👈 Toast
+      setToast({ type: 'success', message: "Refund Successful! Money returned." }) 
     } catch (error) { 
-      setToast({ type: 'error', message: "Refund Failed: " + error.message }) // 👈 Toast
+      setToast({ type: 'error', message: "Refund Failed: " + error.message }) 
     } finally {
       setIsProcessing(false)
     }
   }
 
-  const handleDispute = () => setToast({ type: 'success', message: "Dispute Logged. Support will contact you." }) // 👈 Toast
+  const handleDispute = () => setToast({ type: 'success', message: "Dispute Logged. Support will contact you." })
   const isRefundable = (rippleTime) => Date.now() > (rippleTime + 946684800) * 1000
 
   if (!wallet) return <div className="pt-32 text-center text-white">Please Connect Wallet</div>
@@ -80,7 +86,6 @@ export function ClientDashboard({ wallet }) {
   return (
     <div className="pt-24 px-4 max-w-4xl mx-auto pb-20">
       
-      {/* 👇 UI COMPONENTS INJECTED HERE */}
       {isProcessing && <LoadingOverlay message="Processing Refund..." />}
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       <ConfirmDialog 
@@ -122,13 +127,24 @@ export function ClientDashboard({ wallet }) {
                             <span className="bg-purple-500/10 text-purple-400 text-[10px] px-2 py-0.5 rounded border border-purple-500/20 font-bold uppercase tracking-wide">Sent</span>
                         </div>
                         <div className="text-xs text-slate-500 font-mono space-y-1">
-                           <p>To: {escrow.Destination}</p>
+                           {/* 👇 VERIFICATION LOGIC (Green vs Orange) */}
+                           <div className="flex items-center gap-2">
+                               <span>To: {escrow.Destination}</span>
+                               {escrow.isDestVerified ? (
+                                   <div className="flex items-center gap-1 text-green-400 bg-green-500/10 px-1.5 py-0.5 rounded text-[10px] font-bold border border-green-500/20" title="Identity Verified on XRPL">
+                                       <BadgeCheck size={12} /> VERIFIED
+                                   </div>
+                               ) : (
+                                   <div className="flex items-center gap-1 text-orange-500 bg-orange-500/10 px-1.5 py-0.5 rounded text-[10px] font-bold border border-orange-500/20" title="No Identity Found">
+                                       <AlertCircle size={12} /> UNVERIFIED
+                                   </div>
+                               )}
+                           </div>
                            <p>ID: <span className="text-slate-300">{escrow.realSequence}</span></p>
                         </div>
                     </div>
                     <div className="flex gap-3">
                         <button onClick={handleDispute} className="text-xs text-slate-500 hover:text-white underline px-2">Raise Dispute</button>
-                        {/* 👇 Updated Click Handler */}
                         <button onClick={() => initiateRefund(escrow)} disabled={!canRefund} className={`text-xs px-4 py-2 rounded-lg font-bold border transition-all ${canRefund ? "border-red-500 text-red-400 hover:bg-red-500 hover:text-white" : "border-slate-700 text-slate-600 cursor-not-allowed bg-slate-800/50"}`}>{canRefund ? "Claim Refund" : "Refund Locked"}</button>
                     </div>
                     </div>

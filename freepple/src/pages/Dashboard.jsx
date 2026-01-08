@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Copy, Check, Plus, X, History, Activity } from 'lucide-react'
-import { claimEscrow, connectClient, getEscrowHistory } from '../utils/xrplManager'
+import { Copy, Check, Plus, X, History, Activity, BadgeCheck, AlertCircle } from 'lucide-react'
+import { claimEscrow, connectClient, getEscrowHistory, checkIdentity } from '../utils/xrplManager'
 import { LoadingOverlay } from '../components/LoadingOverlay'
 import { Toast } from '../components/Toast'
 
@@ -39,7 +39,15 @@ export function Dashboard({ wallet }) {
         try {
           const txResponse = await client.request({ command: "tx", transaction: obj.PreviousTxnID })
           const txData = txResponse.result.tx_json || txResponse.result
-          return { ...obj, realSequence: txData.Sequence }
+          
+          // 👇 CHECK CLIENT VERIFICATION
+          const isVerified = await checkIdentity(obj.Account)
+
+          return { 
+            ...obj, 
+            realSequence: txData.Sequence,
+            isSenderVerified: isVerified 
+          }
         } catch (err) { return { ...obj, realSequence: "ERROR" } }
       }))
 
@@ -57,14 +65,9 @@ export function Dashboard({ wallet }) {
     setStatus("Loading History...")
     try {
       const pastTx = await getEscrowHistory(wallet.address)
-
-      // FREELANCER HISTORY RULES:
-      // 1. I signed the transaction (Account === Me)
-      // 2. The type is COMPLETED (I successfully unlocked it)
       const myClaims = pastTx.filter(tx => {
           return tx.account === wallet.address && tx.type === 'COMPLETED'
       })
-
       setHistory(myClaims)
       setStatus("")
     } catch (error) {
@@ -87,7 +90,6 @@ export function Dashboard({ wallet }) {
   const handleGenerateLink = () => {
     if (!invAmount) return setToast({ type: 'error', message: "Please enter an amount" })
     
-    // Bundle data
     const payload = {
       to: wallet.address,
       amount: invAmount,
@@ -96,10 +98,8 @@ export function Dashboard({ wallet }) {
     }
 
     try {
-      // ENCODE: JSON -> Base64 -> URI Component
       const jsonString = JSON.stringify(payload)
       const base64 = btoa(jsonString)
-      // Encode URI Component to ensure '+' and '/' don't break the URL
       const encodedData = encodeURIComponent(base64)
       
       const baseUrl = window.location.origin
@@ -156,11 +156,9 @@ export function Dashboard({ wallet }) {
   return (
     <div className="pt-24 px-4 max-w-4xl mx-auto pb-20">
       
-      {/* OVERLAYS */}
       {isProcessing && <LoadingOverlay message="Unlocking Funds..." />}
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-      {/* HEADER */}
       <div className="flex justify-between items-end mb-6">
         <div>
           <h2 className="text-3xl font-bold text-white">Freelancer Dashboard</h2>
@@ -177,7 +175,6 @@ export function Dashboard({ wallet }) {
         </button>
       </div>
 
-      {/* INVOICE MAKER */}
       {showInvoiceMaker && (
         <div className="bg-slate-800 border border-slate-700 p-6 rounded-2xl mb-8 animate-in fade-in slide-in-from-top-4 duration-300 shadow-2xl">
           <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2"><span>📄</span> Generate Secure Invoice</h3>
@@ -201,7 +198,6 @@ export function Dashboard({ wallet }) {
         </div>
       )}
 
-      {/* TABS */}
       <div className="flex gap-4 mb-6 border-b border-slate-800 pb-1">
         <button 
             onClick={() => !isProcessing && setActiveTab('pending')} 
@@ -233,7 +229,19 @@ export function Dashboard({ wallet }) {
                     <span className="bg-yellow-500/10 text-yellow-500 text-[10px] px-2 py-0.5 rounded border border-yellow-500/20 font-bold uppercase tracking-wide">Locked</span>
                 </div>
                 <div className="text-xs text-slate-500 font-mono space-y-1">
-                    <p>From: {escrow.Account}</p>
+                    {/* 👇 VERIFICATION LOGIC (Green vs Orange) */}
+                    <div className="flex items-center gap-2">
+                        <span>From: {escrow.Account}</span>
+                        {escrow.isSenderVerified ? (
+                            <div className="flex items-center gap-1 text-green-400 bg-green-500/10 px-1.5 py-0.5 rounded text-[10px] font-bold border border-green-500/20" title="Identity Verified on XRPL">
+                                <BadgeCheck size={12} /> VERIFIED
+                            </div>
+                        ) : (
+                            <div className="flex items-center gap-1 text-orange-500 bg-orange-500/10 px-1.5 py-0.5 rounded text-[10px] font-bold border border-orange-500/20" title="No Identity Found">
+                                <AlertCircle size={12} /> UNVERIFIED
+                            </div>
+                        )}
+                    </div>
                     <p>ID: <span className="text-slate-300">{escrow.realSequence}</span></p>
                 </div>
                 </div>
@@ -270,7 +278,6 @@ export function Dashboard({ wallet }) {
             ))}
         </div>
       )}
-
     </div>
   )
 }

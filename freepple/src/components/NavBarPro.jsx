@@ -94,9 +94,7 @@ export function NavBarPro({ wallet, setWallet }) {
         {/* Left (Logo) */}
         <div className="flex items-center gap-2">
           <Link to="/" className="flex items-center gap-2 group">
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl flex items-center justify-center text-xl shadow-lg shadow-blue-900/20 group-hover:scale-105 transition">
-              🔗
-            </div>
+            <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl flex items-center justify-center text-xl shadow-lg shadow-blue-900/20 group-hover:scale-105 transition" />
             <span className="font-bold text-xl tracking-tight text-white group-hover:text-blue-400 transition">
               Freepple
             </span>

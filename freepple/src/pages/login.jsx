@@ -24,7 +24,7 @@ export function Login({ setWallet }) {
         type: 'LOCAL' 
     }
     
-    console.log("👉 Logging in with Existing Wallet:", payload.address)
+    console.log("Logging in with Existing Wallet:", payload.address)
     setWallet(payload) 
   }
 
@@ -33,7 +33,7 @@ export function Login({ setWallet }) {
     setIsLoading(true)
     try {
       const wallet = await getDevWallet()
-      console.log("✨ Created Dev Wallet:", wallet)
+      console.log("Created Dev Wallet:", wallet)
       setNewWalletData(wallet)
     } catch (error) {
       alert("Creation Failed: " + error.message)

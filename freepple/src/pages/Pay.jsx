@@ -63,7 +63,7 @@ export function Pay({ wallet, onConnect }) {
   if (successData) {
     return (
       <div className="min-h-screen flex items-center justify-center px-4 pt-16">
-        <Card title="✅ Funds Locked!" subtitle="Send this Secret Key to the freelancer.">
+        <Card title="Funds Locked!" subtitle="Send this Secret Key to the freelancer.">
           <div className="bg-green-500/10 border border-green-500/30 p-6 rounded-xl mb-6 text-center">
             <p className="text-green-400 text-xs font-bold uppercase tracking-widest mb-2">Unlock Secret</p>
             <p className="font-mono text-2xl text-white tracking-widest break-all select-all">
@@ -144,7 +144,7 @@ export function Pay({ wallet, onConnect }) {
         {/* Security Badge */}
         {isLocked && (
           <div className="text-xs text-center text-green-400 font-bold mb-4 bg-green-500/10 p-3 rounded border border-green-500/20 flex items-center justify-center gap-2 animate-pulse">
-            <span>🔒</span> SECURE INVOICE: Details cannot be edited.
+            SECURE INVOICE: Details cannot be edited.
           </div>
         )}
 

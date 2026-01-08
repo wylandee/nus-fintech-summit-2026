@@ -8,7 +8,7 @@ import { connectClient } from './xrplManager'
  */
 export async function getExistingWallet(seed, expectedAddress) {
   const _client = await connectClient()
-  console.log("🔑 Verifying Credentials...")
+  console.log("Verifying Credentials...")
   
   try {
     // Restore wallet from seed
@@ -21,7 +21,7 @@ export async function getExistingWallet(seed, expectedAddress) {
     // Get live balance
     const balance = await _client.getXrpBalance(wallet.address)
     
-    console.log(`✅ Logged in: ${wallet.address}`)
+    console.log(`Logged in: ${wallet.address}`)
     return wallet
 
   } catch (error) {

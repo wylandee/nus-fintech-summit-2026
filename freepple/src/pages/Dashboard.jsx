@@ -54,7 +54,7 @@ export function Dashboard({ wallet }) {
       setEscrows(enrichedEscrows)
       setStatus("") 
     } catch (error) {
-      console.error("❌ Active Fetch Error:", error)
+      console.error("Active Fetch Error:", error)
       setStatus("") 
     }
   }, [wallet])
@@ -71,7 +71,7 @@ export function Dashboard({ wallet }) {
       setHistory(myClaims)
       setStatus("")
     } catch (error) {
-      console.error("❌ History Error:", error)
+      console.error("History Error:", error)
       setHistory([]) 
       setStatus("") 
     }
@@ -142,7 +142,7 @@ export function Dashboard({ wallet }) {
       
       setSecrets(prev => ({ ...prev, [index]: '' }))
       await fetchActive() 
-      setToast({ type: 'success', message: "✅ Success! Money Unlocked." })
+      setToast({ type: 'success', message: "Success! Money Unlocked." })
       
     } catch (error) {
       setToast({ type: 'error', message: "Error: " + error.message })

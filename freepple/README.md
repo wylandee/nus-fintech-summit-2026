@@ -1,16 +1,76 @@
-# React + Vite
+#  Freepple: Trustless Gig Economy on XRPL
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+## The Problem
+* **Freelancers** get ghosted by clients after doing the work.
+* **Clients** are afraid to pay upfront for fear of scams.
+* **Middlemen** charge **high fees** just to hold the money.
 
-Currently, two official plugins are available:
+## Our Solution: Freepple
+Freepple is a **Trustless Escrow & Identity Platform** built on the **XRP Ledger**.
+We replace the "Middleman" with a **Smart Contract**.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+* **Zero Fees:** We charge 0% commission. You only pay the network gas (**very low**).
+* **Trustless Payments:** Clients lock funds *before* work starts. Funds are locked on the ledger until the work is delivered.
+* **On-Chain Identity:** We use **XLS-40 DID** to mint "Verified" badges. Your reputation lives on the blockchain.
 
-## React Compiler
+---
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Key Features
 
-## Expanding the ESLint configuration
+### 1. Smart Escrow Vaults
+Funds are locked on the XRPL using a **Preimage Sha256 Condition**.
+* **Client** proves solvency by locking the money.
+* **Freelancer** sees the "Locked" status and feels safe to work.
+* **Release:** The money is released instantly when the Freelancer inputs the correct Secret Key (exchanged upon delivery).
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+### 2. Decentralized Identity (DID)
+Integrated with the **XLS-40 Standard**.
+* Users can "Mint" a verification badge directly to the ledger.
+* **Green Badge:** Verified Identity (Trusted).
+* **Orange Badge:** Unverified (High Risk).
+* Users can transact with unverified wallets at their discretion
+* Freelancers can build a portable reputation.
+* Clients are disincentivised from ghosting for fear of destroying their on-chain reputation.
+
+### 3. Safety Refunds
+If a freelancer disappears, the client's money is secure.
+* Funds have a **Timeout Duration** (e.g., 24 hours).
+* After expiry, the client can unilaterally **Claim Refund** to pull funds back.
+
+If the client does not hand over the Secret Key, freelancers are protected
+* **Raise Dispute** button to raise a transaction issue.
+* Clients risk damage to their on-chain reputation, linked through DID.
+
+### 4. One-Click Invoicing
+* Freelancers generate secure payment links.
+* Encodes amount, memo, and destination to prevent user error.
+* Fields are locked to prevent tampering.
+
+---
+
+## Tech Stack
+
+* **Frontend:** React + Vite
+* **Styling:** Tailwind CSS + Lucide React
+* **Backend:** XRPL.js (Client Library)
+* **Network:** XRP Ledger Testnet
+
+---
+
+## 🏃‍♂️ How to Run Locally
+
+### Prerequisites
+* Node.js (v18+)
+* npm or yarn
+
+### Installation
+```bash
+# 1. Clone the repo
+git clone https://github.com/wylandee/nus-fintech-summit-2026.git
+
+# 2. Install dependencies
+cd freepple
+npm install
+
+# 3. Start the dev server
+npm run dev

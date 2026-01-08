@@ -4,7 +4,7 @@ import { Card } from '../components/Card'
 import { Input } from '../components/Input'
 import { GlowButton } from '../components/GlowButton'
 import { createEscrow } from '../utils/xrplManager'
-import { LoadingOverlay } from '../components/LoadingOverlay' // Ensure this is imported if you want loading spinner here too
+import { LoadingOverlay } from '../components/LoadingOverlay' 
 
 export function Pay({ wallet, onConnect }) {
   const [searchParams] = useSearchParams()
@@ -12,21 +12,32 @@ export function Pay({ wallet, onConnect }) {
   const [destination, setDestination] = useState('')
   const [memo, setMemo] = useState('')
   const [duration, setDuration] = useState(24)
-  const [isLocked, setIsLocked] = useState(false)
+  
+  const [isLocked, setIsLocked] = useState(false) 
   const [isLoading, setIsLoading] = useState(false)
   const [successData, setSuccessData] = useState(null)
 
   useEffect(() => {
-    const urlTo = searchParams.get('to')
-    const urlAmount = searchParams.get('amount')
-    const urlMemo = searchParams.get('memo')
+    const secureData = searchParams.get('data')
 
-    if (urlTo && urlAmount) {
-      setDestination(urlTo)
-      setAmount(urlAmount)
-      if (urlMemo) setMemo(urlMemo)
-      setIsLocked(true)
-    }
+    if (secureData) {
+        try {
+            // 1. Decode the URL-safe string back to normal
+            // 2. Decode Base64 -> JSON
+            const jsonString = atob(secureData) 
+            const payload = JSON.parse(jsonString)
+
+            if (payload.to && payload.amount) {
+                setDestination(payload.to)
+                setAmount(payload.amount)
+                setMemo(payload.memo || '')
+                setIsLocked(true) // 🔒 LOCK THE FIELDS
+            }
+        } catch (e) {
+            console.error("Link Decoding Failed:", e)
+            // Don't crash, just let them type manually
+        }
+    } 
   }, [searchParams])
 
   const handleAmountChange = (e) => {
@@ -48,10 +59,9 @@ export function Pay({ wallet, onConnect }) {
     setIsLoading(false)
   }
 
-  // 1. SUCCESS VIEW
+  // SUCCESS VIEW
   if (successData) {
     return (
-      // 👇 Centered Layout
       <div className="min-h-screen flex items-center justify-center px-4 pt-16">
         <Card title="✅ Funds Locked!" subtitle="Send this Secret Key to the freelancer.">
           <div className="bg-green-500/10 border border-green-500/30 p-6 rounded-xl mb-6 text-center">
@@ -60,19 +70,10 @@ export function Pay({ wallet, onConnect }) {
               {successData.secret}
             </p>
           </div>
-          
           <div className="space-y-4">
             <Input label="Escrow ID" value={successData.sequence} readOnly />
             <Input label="Transaction Hash" value={successData.txHash} readOnly />
-            
-            <div className="flex justify-between text-xs text-slate-400 px-2 bg-slate-900/50 p-3 rounded border border-slate-800">
-              <span>Refund Available After:</span>
-              <span className="text-red-400 font-mono">
-                 {successData.expiry ? successData.expiry.toLocaleString() : "24 Hours"}
-              </span>
-            </div>
           </div>
-
           <div className="mt-8">
             <GlowButton onClick={() => setSuccessData(null)} variant="secondary">Make Another Payment</GlowButton>
           </div>
@@ -81,64 +82,69 @@ export function Pay({ wallet, onConnect }) {
     )
   }
 
-  // 2. PAYMENT FORM VIEW
+  // PAYMENT FORM
   return (
-    // 👇 UPDATED CONTAINER: 
-    // min-h-screen + flex + items-center = Vertically Centered (No Scrollbar on large screens)
     <div className="min-h-screen flex items-center justify-center px-4 pt-16 pb-24">
       
       {isLoading && <LoadingOverlay message="Locking Funds..." />}
 
       <Card title="Secure Payment" subtitle={isLocked ? "Invoice Details Locked" : "Funds are held in XRPL Escrow"}>
         
-        <Input 
-          label="Paying To (Freelancer)" 
-          value={destination} 
-          onChange={(e) => setDestination(e.target.value)}
-          placeholder="rRecipientAddress..."
-          readOnly={isLocked}
-        />
+        {/* Destination Input */}
+        <div className={isLocked ? "opacity-50 pointer-events-none" : ""}>
+            <Input 
+              label="Paying To (Freelancer)" 
+              value={destination} 
+              onChange={(e) => setDestination(e.target.value)}
+              placeholder="rRecipientAddress..."
+              readOnly={isLocked} 
+            />
+        </div>
         
-        <Input 
-          label="Amount (XRP)" 
-          value={amount} 
-          onChange={handleAmountChange} 
-          placeholder="0.00"
-          readOnly={isLocked}
-          type="text" 
-          inputMode="decimal"
-        />
+        {/* Amount Input */}
+        <div className={isLocked ? "opacity-50 pointer-events-none" : ""}>
+            <Input 
+              label="Amount (XRP)" 
+              value={amount} 
+              onChange={handleAmountChange} 
+              placeholder="0.00"
+              readOnly={isLocked} 
+              type="text" 
+              inputMode="decimal"
+            />
+        </div>
 
+        {/* Timer */}
         <div className="mb-4">
           <label className="block text-slate-400 text-xs font-bold mb-2 uppercase tracking-wider">
-            Auto-Refund Timer (Safety Net)
+            Auto-Refund Timer
           </label>
           <select 
             value={duration}
             onChange={(e) => setDuration(Number(e.target.value))}
             className="w-full bg-slate-950 border border-slate-700 text-white p-3 rounded-lg focus:border-blue-500 outline-none appearance-none cursor-pointer hover:border-slate-500 transition"
           >
-            <option value={0.05}>⚡️ 3 Minutes (Fast Test)</option>
+            <option value={0.05}>⚡️ 3 Minutes (Test)</option>
             <option value={1}>1 Hour</option>
             <option value={24}>24 Hours (Standard)</option>
-            <option value={168}>7 Days (Large Projects)</option>
+            <option value={168}>7 Days (Large)</option>
           </select>
-          <p className="text-[10px] text-slate-500 mt-2">
-            If the work is not unlocked by this time, you can reclaim your funds.
-          </p>
         </div>
 
-        <Input 
-          label="Job Description" 
-          value={memo} 
-          onChange={(e) => setMemo(e.target.value)}
-          placeholder="e.g. Website Design"
-          readOnly={isLocked}
-        />
+        <div className={isLocked ? "opacity-50 pointer-events-none" : ""}>
+            <Input 
+              label="Job Description" 
+              value={memo} 
+              onChange={(e) => setMemo(e.target.value)}
+              placeholder="e.g. Website Design"
+              readOnly={isLocked}
+            />
+        </div>
 
+        {/* SECURITY BADGE */}
         {isLocked && (
-          <div className="text-xs text-center text-yellow-500/80 mb-4 bg-yellow-500/10 p-2 rounded border border-yellow-500/20">
-            🔒 Details are fixed by the invoice link.
+          <div className="text-xs text-center text-green-400 font-bold mb-4 bg-green-500/10 p-3 rounded border border-green-500/20 flex items-center justify-center gap-2 animate-pulse">
+            <span>🔒</span> SECURE INVOICE: Details cannot be edited.
           </div>
         )}
 

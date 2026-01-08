@@ -22,7 +22,7 @@ function App() {
         
         {/* Pass wallet to Navbar so it shows the address/logout */}
         <NavBarPro 
-          walletAddress={wallet.address} 
+          wallet={wallet} 
           setWallet={setWallet} // Passing this allows "Logout" (setting wallet to null)
         />
 

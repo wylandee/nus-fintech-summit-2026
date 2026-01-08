@@ -192,3 +192,81 @@ export async function getEscrowHistory(address) {
   console.log(`🎉 Final Clean History Count: ${history.length}`)
   return history
 }
+
+/**
+ * 🆔 REGISTER IDENTITY (With Safety Check)
+ */
+export async function registerIdentity(wallet) {
+  const _client = await connectClient()
+  
+  // 1. SAFETY CHECK: Check Ledger one last time before spending money
+  const isAlreadyVerified = await checkIdentity(wallet.address)
+  if (isAlreadyVerified) {
+    console.log("⚠️ Safety Trigger: Wallet already has a DID.")
+    return true // Return success without sending Tx
+  }
+
+  console.log("🆔 Registering DID...")
+  const didUri = "did:xrpl:testnet:" + wallet.address
+  const didData = xrpl.convertStringToHex(didUri)
+
+  const tx = {
+    TransactionType: "DIDSet",
+    Account: wallet.address,
+    URI: didData,
+  }
+
+  const result = await _client.submitAndWait(tx, { wallet })
+
+  if (result.result.meta.TransactionResult === "tesSUCCESS") {
+    // 2. CACHE IT: Save to LocalStorage so UI updates instantly next time
+    localStorage.setItem(`did_verified_${wallet.address}`, "true")
+    console.log("✅ DID Registered & Cached!")
+    return true
+  } else {
+    throw new Error(`DID Failed: ${result.result.meta.TransactionResult}`)
+  }
+}
+
+/**
+ * 🕵️‍♂️ CHECK IDENTITY (The Bulletproof Version)
+ */
+export async function checkIdentity(address) {
+  // 1. FAST CHECK: Check Browser Cache first (Instant UI fix)
+  if (localStorage.getItem(`did_verified_${address}`) === "true") {
+    console.log("⚡️ Identity found in Local Cache")
+    return true
+  }
+
+  const _client = await connectClient()
+  try {
+    // 2. DEEP CHECK: Fetch ALL objects from Ledger
+    const response = await _client.request({
+      command: "account_objects",
+      account: address,
+      ledger_index: "validated",
+      limit: 400 // Fetch everything
+    })
+
+    const objects = response.result.account_objects
+    
+    // Debug: Print types found so we can see if DID is hiding
+    const typesFound = objects.map(o => o.LedgerEntryType)
+    console.log(`🔎 Found Object Types for ${address}:`, typesFound)
+
+    // 3. FUZZY FIND: Check for "DID" (Case Insensitive)
+    const hasDID = objects.some(obj => 
+      obj.LedgerEntryType && obj.LedgerEntryType.toUpperCase() === "DID"
+    )
+    
+    // 4. Update Cache if found
+    if (hasDID) {
+       localStorage.setItem(`did_verified_${address}`, "true")
+    }
+
+    return hasDID
+  } catch (e) {
+    console.error("Check Identity Failed:", e)
+    return false
+  }
+}

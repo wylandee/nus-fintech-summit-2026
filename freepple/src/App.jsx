@@ -4,7 +4,7 @@ import { NavBarPro } from './components/NavBarPro'
 import { Pay } from './pages/Pay'
 import { Dashboard } from './pages/Dashboard'
 import { ClientDashboard } from './pages/ClientDashboard'
-import { Login } from './pages/Login'
+import { Login } from './pages/login'
 
 function App() {
   const [wallet, setWallet] = useState(null)

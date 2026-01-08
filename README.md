@@ -48,6 +48,32 @@ If the client does not hand over the Secret Key, freelancers are protected
 
 ---
 
+## Sample Workflow
+
+1. Client and freelancer agree on a price and job request on their separate communication channel (e.g. Whatsapp, Email).
+2. Freelancer logs onto Freepple and creates a new request, filling in the fields as per their agreement.
+3. A payment link is auto-generated and freelancer sends it to the client.
+4. Client clicks on the link, bringing him to the payment page after logging in.
+5. Client sets the timeout duration and locks the XRP on the blockchain.
+6. Client saves the secret key somewhere safe.
+7. Freelancer checks his dashboard and sees that the XRP is on the blockchain.
+8. Freelancer can start his work knowing that the XRP is secure.
+9. Freelancer submits the completed work to client.
+10. Client is happy with the work and sends over the secret key to freelancer.
+11. Freelancer unlocks the funds with the secret key.
+
+---
+
+## Planned Enhancements
+
+1. Add support for **RLUSD** and other tokens.
+2. Add support for browser wallets such as **Crossmark**.
+3. Add a **3rd party mediator** to resolve payment disputes.
+4. Add **better DID verification** through proper **DID document URI**.
+5. Add a feature to **flag out or blacklist scammers** through their DID. 
+
+---
+
 ## Tech Stack
 
 * **Frontend:** React + Vite
@@ -74,3 +100,4 @@ npm install
 
 # 3. Start the dev server
 npm run dev
+```

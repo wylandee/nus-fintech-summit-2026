@@ -20,7 +20,7 @@ export function Dashboard({ wallet }) {
   const [generatedLink, setGeneratedLink] = useState('')
   const [copied, setCopied] = useState(false)
 
-  // 1. FETCH ACTIVE (Pending Payments)
+  // Fetch Active (pending payments)
   const fetchActive = useCallback(async () => {
     if (!wallet) return
     setStatus("Scanning Ledger...")
@@ -40,7 +40,7 @@ export function Dashboard({ wallet }) {
           const txResponse = await client.request({ command: "tx", transaction: obj.PreviousTxnID })
           const txData = txResponse.result.tx_json || txResponse.result
           
-          // 👇 CHECK CLIENT VERIFICATION
+          // Check client verification
           const isVerified = await checkIdentity(obj.Account)
 
           return { 
@@ -59,7 +59,7 @@ export function Dashboard({ wallet }) {
     }
   }, [wallet])
 
-  // 2. FETCH HISTORY (Completed Payments)
+  // Fetch History (completed payments)
   const fetchPast = useCallback(async () => {
     if (!wallet) return
     setStatus("Loading History...")
@@ -77,7 +77,7 @@ export function Dashboard({ wallet }) {
     }
   }, [wallet])
 
-  // 3. TAB SWITCHER
+  // Tab Switcher
   useEffect(() => {
     if (activeTab === 'pending') {
         fetchActive()
@@ -86,7 +86,7 @@ export function Dashboard({ wallet }) {
     }
   }, [activeTab, fetchActive, fetchPast])
 
-  // 4. GENERATE SECURE LINK
+  // Generate Secure Link
   const handleGenerateLink = () => {
     if (!invAmount) return setToast({ type: 'error', message: "Please enter an amount" })
     
@@ -128,7 +128,7 @@ export function Dashboard({ wallet }) {
     setSecrets(prev => ({ ...prev, [id]: value }))
   }
 
-  // 5. UNLOCK FUNDS
+  // Unlock Funds
   const handleUnlock = async (index) => {
     const secret = secrets[index]
     if (!secret) return setToast({ type: 'error', message: "Please enter Secret!" })
@@ -217,7 +217,7 @@ export function Dashboard({ wallet }) {
 
       {status && <div className="bg-blue-900/30 text-blue-200 p-3 rounded-lg mb-4 text-sm animate-pulse">{status}</div>}
 
-      {/* PENDING VIEW */}
+      {/* Pending View */}
       {activeTab === 'pending' && (
         <div className="grid gap-4">
             {escrows.length === 0 && !status && <div className="text-center py-10 border border-dashed border-slate-700 rounded-xl bg-slate-900/50 text-slate-500">No pending payments.</div>}
@@ -229,7 +229,7 @@ export function Dashboard({ wallet }) {
                     <span className="bg-yellow-500/10 text-yellow-500 text-[10px] px-2 py-0.5 rounded border border-yellow-500/20 font-bold uppercase tracking-wide">Locked</span>
                 </div>
                 <div className="text-xs text-slate-500 font-mono space-y-1">
-                    {/* 👇 VERIFICATION LOGIC (Green vs Orange) */}
+                    {/* Verification logic */}
                     <div className="flex items-center gap-2">
                         <span>From: {escrow.Account}</span>
                         {escrow.isSenderVerified ? (
@@ -254,7 +254,7 @@ export function Dashboard({ wallet }) {
         </div>
       )}
 
-      {/* HISTORY VIEW */}
+      {/* History View */}
       {activeTab === 'history' && (
         <div className="grid gap-4">
             {history.length === 0 && !status && (

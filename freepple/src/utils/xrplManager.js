@@ -3,7 +3,7 @@ import * as xrpl from 'xrpl'
 const SERVER_URL = "wss://s.altnet.rippletest.net:51233/"
 let client = null
 
-// 1. Singleton Client
+// Singleton Client
 export async function connectClient() {
   if (client && client.isConnected()) return client
 
@@ -15,7 +15,7 @@ export async function connectClient() {
   return client
 }
 
-// 2. Fund Wallet
+// Fund Wallet
 export async function getDevWallet() {
   const _client = await connectClient()
   console.log("💸 Asking Faucet for funds...")
@@ -25,12 +25,12 @@ export async function getDevWallet() {
   return wallet
 }
 
-// 3. Create Escrow
+// Create Escrow
 export async function createEscrow(senderWallet, amountXRP, destinationAddress, durationHours = 24) {
   const _client = await connectClient()
   console.log("🔒 Generating Security Keys...")
 
-  // 👇 CRITICAL FIX: Re-create the Wallet Instance from the seed
+  // Re-create the Wallet Instance from the seed
   const signerWallet = xrpl.Wallet.fromSeed(senderWallet.seed)
 
   const randomBytes = window.crypto.getRandomValues(new Uint8Array(32))
@@ -72,12 +72,12 @@ export async function createEscrow(senderWallet, amountXRP, destinationAddress, 
   }
 }
 
-// 4. Claim Escrow
+// Claim Escrow
 export async function claimEscrow(wallet, ownerAddress, escrowSequence, condition, secret) {
   const _client = await connectClient()
   console.log("🔓 Constructing Skeleton Key...")
   
-  // 👇 FIX: Re-create the Wallet Instance
+  // Re-create the Wallet Instance
   const signerWallet = xrpl.Wallet.fromSeed(wallet.seed)
 
   const fulfillment = "A0228020" + secret
@@ -102,12 +102,12 @@ export async function claimEscrow(wallet, ownerAddress, escrowSequence, conditio
   }
 }
 
-// 5. Cancel Escrow (Refund)
+// Cancel Escrow (Refund)
 export async function cancelEscrow(wallet, ownerAddress, escrowSequence) {
   const _client = await connectClient()
   console.log("⏳ Attempting Refund...")
 
-  // 👇 FIX: Re-create the Wallet Instance
+  // Re-create the Wallet Instance
   const signerWallet = xrpl.Wallet.fromSeed(wallet.seed)
 
   const tx = {
@@ -127,7 +127,7 @@ export async function cancelEscrow(wallet, ownerAddress, escrowSequence) {
   }
 }
 
-// 6. History Logic
+// History Logic
 export async function getEscrowHistory(address) {
   const client = await connectClient()
   
@@ -186,11 +186,11 @@ export async function getEscrowHistory(address) {
   return history
 }
 
-// 7. Register Identity
+// Register Identity
 export async function registerIdentity(wallet) {
   const _client = await connectClient()
   
-  // 👇 FIX: Re-create the Wallet Instance
+  // Re-create the Wallet Instance
   const signerWallet = xrpl.Wallet.fromSeed(wallet.seed)
 
   const isAlreadyVerified = await checkIdentity(signerWallet.address)
@@ -220,7 +220,7 @@ export async function registerIdentity(wallet) {
   }
 }
 
-// 8. Check Identity
+// Check Identity
 export async function checkIdentity(address) {
   if (localStorage.getItem(`did_verified_${address}`) === "true") {
     console.log("⚡️ Identity found in Local Cache")

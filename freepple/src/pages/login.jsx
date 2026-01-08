@@ -5,20 +5,19 @@ import { Copy, Check, Wallet, Plus, ArrowRight } from 'lucide-react'
 export function Login({ setWallet }) {
   const [isLoading, setIsLoading] = useState(false)
   
-  // FORM STATE
+  // Form State
   const [inputAddress, setInputAddress] = useState('')
   const [inputSeed, setInputSeed] = useState('')
   
-  // MODAL STATE
+  // Modal State
   const [newWalletData, setNewWalletData] = useState(null)
   const [hasCopied, setHasCopied] = useState(false)
 
-  // 1. MANUAL LOGIN (Existing Wallet)
+  // Manual Login (existing wallet)
   const handleManualLogin = () => {
     if (!inputAddress) return alert("Error: Wallet Address is empty")
     if (!inputSeed) return alert("Error: Secret Key is empty")
 
-    // 👇 CRITICAL FIX: We save the 'seed' so we can sign transactions later
     const payload = { 
         address: inputAddress.trim(), 
         seed: inputSeed.trim(), 
@@ -29,7 +28,7 @@ export function Login({ setWallet }) {
     setWallet(payload) 
   }
 
-  // 2. CREATE NEW DEV WALLET
+  // Create new dev wallet
   const handleCreate = async () => {
     setIsLoading(true)
     try {
@@ -42,7 +41,7 @@ export function Login({ setWallet }) {
     setIsLoading(false)
   }
 
-  // 3. CONFIRM BACKUP
+  // Confirm backup
   const handleBackupConfirmed = () => {
     if (!newWalletData) return
     const payload = {
@@ -62,7 +61,7 @@ export function Login({ setWallet }) {
 
   // --- VIEWS ---
 
-  // BACKUP MODAL (Shows when you generate a new wallet)
+  // Backup modal (Shows when you generate a new wallet)
   if (newWalletData) {
     return (
        <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
@@ -89,7 +88,7 @@ export function Login({ setWallet }) {
     )
   }
 
-  // LOGIN SCREEN
+  // Login Screen
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 relative overflow-hidden">
         <div className="mb-8 text-center z-10">
@@ -99,7 +98,7 @@ export function Login({ setWallet }) {
 
         <div className="w-full max-w-sm z-10 space-y-6">
             
-            {/* MANUAL FORM */}
+            {/* Manual Form */}
             <div className="bg-slate-900/50 border border-slate-800 p-6 rounded-2xl backdrop-blur-sm shadow-xl">
                 <h3 className="text-white font-bold text-lg mb-4 flex items-center gap-2">
                     <Wallet size={20} className="text-blue-500"/> Access Wallet

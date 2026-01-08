@@ -22,16 +22,16 @@ export function Pay({ wallet, onConnect }) {
 
     if (secureData) {
         try {
-            // 1. Decode the URL-safe string back to normal
-            // 2. Decode Base64 -> JSON
-            const jsonString = atob(secureData) 
+            // Decode the URL-safe string back to normal
+            const jsonString = atob(secureData)
+            // Decode Base64 -> JSON
             const payload = JSON.parse(jsonString)
 
             if (payload.to && payload.amount) {
                 setDestination(payload.to)
                 setAmount(payload.amount)
                 setMemo(payload.memo || '')
-                setIsLocked(true) // 🔒 LOCK THE FIELDS
+                setIsLocked(true) // Lock the fields
             }
         } catch (e) {
             console.error("Link Decoding Failed:", e)
@@ -59,7 +59,7 @@ export function Pay({ wallet, onConnect }) {
     setIsLoading(false)
   }
 
-  // SUCCESS VIEW
+  // Success View
   if (successData) {
     return (
       <div className="min-h-screen flex items-center justify-center px-4 pt-16">
@@ -82,7 +82,7 @@ export function Pay({ wallet, onConnect }) {
     )
   }
 
-  // PAYMENT FORM
+  // Payment Form
   return (
     <div className="min-h-screen flex items-center justify-center px-4 pt-16 pb-24">
       
@@ -141,7 +141,7 @@ export function Pay({ wallet, onConnect }) {
             />
         </div>
 
-        {/* SECURITY BADGE */}
+        {/* Security Badge */}
         {isLocked && (
           <div className="text-xs text-center text-green-400 font-bold mb-4 bg-green-500/10 p-3 rounded border border-green-500/20 flex items-center justify-center gap-2 animate-pulse">
             <span>🔒</span> SECURE INVOICE: Details cannot be edited.

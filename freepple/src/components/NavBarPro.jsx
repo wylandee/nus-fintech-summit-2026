@@ -10,23 +10,22 @@ export function NavBarPro({ wallet, setWallet }) {
   const [loadingDID, setLoadingDID] = useState(false)
   const [checkingStatus, setCheckingStatus] = useState(true)
 
-  // UI State
   const [toast, setToast] = useState(null)
   const [dialog, setDialog] = useState({ isOpen: false, title: '', message: '', onConfirm: null })
 
-  // 🔄 HYBRID CHECK: Cache First, Then Ledger
+  // Cache first then ledger
   useEffect(() => {
     if (wallet) {
       setCheckingStatus(true)
       
-      // 1. check Cache immediately for instant UI
+      // Check cache immediately for instant UI
       const cached = localStorage.getItem(`did_verified_${wallet.address}`)
       if (cached === "true") {
           setIsVerified(true)
           setCheckingStatus(false) // Stop spinner early
       }
 
-      // 2. Check Ledger in background (to confirm validity)
+      // Check ledger in background (to confirm validity)
       checkIdentity(wallet.address).then((verified) => {
         setIsVerified(verified)
         setCheckingStatus(false)
@@ -59,7 +58,6 @@ export function NavBarPro({ wallet, setWallet }) {
   const runVerification = async () => {
     setLoadingDID(true)
     try {
-      // Logic handles the "Already Verified" case internally now
       await registerIdentity(wallet)
       
       setIsVerified(true)
@@ -93,7 +91,7 @@ export function NavBarPro({ wallet, setWallet }) {
 
       <nav className="fixed top-0 left-0 right-0 bg-slate-950/80 backdrop-blur-md border-b border-slate-800 z-50 h-20 flex items-center justify-between px-6">
         
-        {/* LEFT: LOGO */}
+        {/* Left (Logo) */}
         <div className="flex items-center gap-2">
           <Link to="/" className="flex items-center gap-2 group">
             <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl flex items-center justify-center text-xl shadow-lg shadow-blue-900/20 group-hover:scale-105 transition">
@@ -105,25 +103,25 @@ export function NavBarPro({ wallet, setWallet }) {
           </Link>
         </div>
 
-        {/* RIGHT: ACTIONS */}
+        {/* Right (Actions)) */}
         <div className="flex items-center gap-4">
           
           {wallet && (
             <>
-              {/* 1. VERIFICATION STATUS */}
+              {/* Verification Status */}
               {checkingStatus ? (
-                // ⏳ LOADING (Subtle)
+                // Loading (Subtle)
                 <div className="text-slate-500 text-xs flex items-center gap-2 px-3">
                   <Loader2 size={14} className="animate-spin" /> Checking ID...
                 </div>
               ) : isVerified ? (
-                // ✅ VERIFIED (Green Badge)
+                // Verified (Green Badge)
                 <div className="flex items-center gap-1.5 bg-green-500/10 border border-green-500/50 text-green-400 px-4 py-2 rounded-lg text-sm font-bold animate-in zoom-in cursor-help shadow-lg shadow-green-900/20" title="Identity Verified on XRPL">
                   <BadgeCheck size={18} />
                   <span>Verified ID</span>
                 </div>
               ) : (
-                // 🔵 NOT VERIFIED (Blue Button)
+                // Not Verified (Blue Button)
                 <button 
                   onClick={handleVerifyClick}
                   disabled={loadingDID}
@@ -133,7 +131,7 @@ export function NavBarPro({ wallet, setWallet }) {
                 </button>
               )}
 
-              {/* 2. WALLET DISPLAY (Green Pulse Style) */}
+              {/* Wallet Display */}
               <div className="flex items-center gap-3 bg-slate-800 rounded-lg px-4 py-2 border border-slate-700">
                 <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse shadow-[0_0_10px_#4ade80]"></div>
                 <div className="flex flex-col text-right leading-none">

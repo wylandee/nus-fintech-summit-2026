@@ -4,20 +4,15 @@ import { Card } from '../components/Card'
 import { Input } from '../components/Input'
 import { GlowButton } from '../components/GlowButton'
 import { createEscrow } from '../utils/xrplManager'
+import { LoadingOverlay } from '../components/LoadingOverlay' // Ensure this is imported if you want loading spinner here too
 
 export function Pay({ wallet, onConnect }) {
   const [searchParams] = useSearchParams()
-  
   const [amount, setAmount] = useState('')
   const [destination, setDestination] = useState('')
   const [memo, setMemo] = useState('')
-  
-  // Duration State (Default 24 hours)
   const [duration, setDuration] = useState(24)
-
-  // Invoice Lock State
   const [isLocked, setIsLocked] = useState(false)
-  
   const [isLoading, setIsLoading] = useState(false)
   const [successData, setSuccessData] = useState(null)
 
@@ -34,12 +29,8 @@ export function Pay({ wallet, onConnect }) {
     }
   }, [searchParams])
 
-  // 👇 INPUT SANITIZER: Prevents negative numbers
   const handleAmountChange = (e) => {
-    const val = e.target.value
-    // Regex: Remove anything that is NOT a number (0-9) or a decimal point (.)
-    // This strips out the minus sign '-' automatically.
-    const cleanVal = val.replace(/[^0-9.]/g, '')
+    const cleanVal = e.target.value.replace(/[^0-9.]/g, '')
     setAmount(cleanVal)
   }
 
@@ -57,10 +48,11 @@ export function Pay({ wallet, onConnect }) {
     setIsLoading(false)
   }
 
-  // VIEW 1: Success Receipt
+  // 1. SUCCESS VIEW
   if (successData) {
     return (
-      <div className="pt-32 px-4 flex justify-center">
+      // 👇 Centered Layout
+      <div className="min-h-screen flex items-center justify-center px-4 pt-16">
         <Card title="✅ Funds Locked!" subtitle="Send this Secret Key to the freelancer.">
           <div className="bg-green-500/10 border border-green-500/30 p-6 rounded-xl mb-6 text-center">
             <p className="text-green-400 text-xs font-bold uppercase tracking-widest mb-2">Unlock Secret</p>
@@ -89,9 +81,14 @@ export function Pay({ wallet, onConnect }) {
     )
   }
 
-  // VIEW 2: Payment Form
+  // 2. PAYMENT FORM VIEW
   return (
-    <div className="pt-32 px-4 flex justify-center pb-20">
+    // 👇 UPDATED CONTAINER: 
+    // min-h-screen + flex + items-center = Vertically Centered (No Scrollbar on large screens)
+    <div className="min-h-screen flex items-center justify-center px-4 pt-16 pb-24">
+      
+      {isLoading && <LoadingOverlay message="Locking Funds..." />}
+
       <Card title="Secure Payment" subtitle={isLocked ? "Invoice Details Locked" : "Funds are held in XRPL Escrow"}>
         
         <Input 
@@ -102,7 +99,6 @@ export function Pay({ wallet, onConnect }) {
           readOnly={isLocked}
         />
         
-        {/* 👇 UPDATED INPUT: Uses the clean handler */}
         <Input 
           label="Amount (XRP)" 
           value={amount} 
@@ -110,10 +106,9 @@ export function Pay({ wallet, onConnect }) {
           placeholder="0.00"
           readOnly={isLocked}
           type="text" 
-          inputMode="decimal" // Pops up number keyboard on mobile
+          inputMode="decimal"
         />
 
-        {/* Auto-Refund Timer Dropdown */}
         <div className="mb-4">
           <label className="block text-slate-400 text-xs font-bold mb-2 uppercase tracking-wider">
             Auto-Refund Timer (Safety Net)
@@ -129,7 +124,7 @@ export function Pay({ wallet, onConnect }) {
             <option value={168}>7 Days (Large Projects)</option>
           </select>
           <p className="text-[10px] text-slate-500 mt-2">
-            If the work is not unlocked by this time, you can reclaim your funds via the Dashboard.
+            If the work is not unlocked by this time, you can reclaim your funds.
           </p>
         </div>
 

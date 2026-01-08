@@ -38,9 +38,6 @@ function App() {
 
         {/* Floating Nav for Demo purposes */}
         <nav className="fixed bottom-6 right-6 flex gap-3 z-50">
-          <Link to="/pay" className="bg-slate-800 border border-slate-700 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-lg text-xs font-bold shadow-xl transition">
-            Make Payment
-          </Link>
           <Link to="/client" className="bg-slate-800 border border-slate-700 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-lg text-xs font-bold shadow-xl transition">
             My Payments
           </Link>
